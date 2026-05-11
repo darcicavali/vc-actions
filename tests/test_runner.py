@@ -137,6 +137,9 @@ def _patch_runner(
     dry_run: bool = False,
 ):
     """Patch the runner to use fake sheets + stub Claude, and pin prompts_dir."""
+    # Skip the inter-agent sleep in tests (default is 60s × 6 = unusable).
+    monkeypatch.setenv("VC_ACTIONS_INTER_AGENT_DELAY_SECONDS", "0")
+
     claude = StubClaudeClient(
         specialist_text=_specialist_response(),
         coordinator_text=_coordinator_response(),
@@ -204,6 +207,17 @@ def test_failing_specialist_does_not_block_coordinator(
     # Runtime log captured the error.
     rt = fake_spreadsheet.worksheet("Runtime Log").get_all_records()
     assert any(r["agent"] == "CustomerAgent" and r["status"] == "error" for r in rt)
+
+
+def test_inter_agent_delay_reads_env(monkeypatch):
+    monkeypatch.setenv("VC_ACTIONS_INTER_AGENT_DELAY_SECONDS", "5")
+    assert runner_mod._inter_agent_delay() == 5
+    monkeypatch.setenv("VC_ACTIONS_INTER_AGENT_DELAY_SECONDS", "0")
+    assert runner_mod._inter_agent_delay() == 0
+    monkeypatch.setenv("VC_ACTIONS_INTER_AGENT_DELAY_SECONDS", "not-a-number")
+    assert runner_mod._inter_agent_delay() == runner_mod.DEFAULT_INTER_AGENT_DELAY_SECONDS
+    monkeypatch.delenv("VC_ACTIONS_INTER_AGENT_DELAY_SECONDS", raising=False)
+    assert runner_mod._inter_agent_delay() == runner_mod.DEFAULT_INTER_AGENT_DELAY_SECONDS
 
 
 def test_dry_run_writes_nothing(monkeypatch, sheets, fake_spreadsheet, base_config, prompts_dir, capsys):

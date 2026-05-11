@@ -246,6 +246,49 @@ def test_dry_run_defaults_from_config(sheets, fake_config, prompts_dir, fake_spr
     assert fake_spreadsheet.worksheet("Agent Memos").get_all_records() == []
 
 
+class _TabAgent(BaseAgent):
+    """Real BaseAgent subclass (not the stub) so default gather_data runs."""
+
+    name = "AdsAgent"
+    role_prompt_file = "ads.md"
+
+
+def test_gather_data_caps_rows_per_tab(sheets, fake_config, prompts_dir):
+    """Big tabs must be truncated to the last N rows to fit the token budget."""
+    sheets.ensure_tab("HugeTab", ["week", "value"])
+    for i in range(500):
+        sheets.append_row("HugeTab", [f"2024-W{i:03d}", i])
+
+    class HugeAgent(_TabAgent):
+        data_tabs = ["HugeTab"]
+        max_rows_per_tab = 50
+
+    claude = StubClaudeClient(next_text=_good_response_json())
+    agent = HugeAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
+    data = agent.gather_data()
+    payload = data["HugeTab"]
+    assert payload["_total_rows"] == 500
+    assert payload["_kept_last"] == 50
+    assert len(payload["rows"]) == 50
+    assert payload["rows"][0]["value"] == 450
+    assert payload["rows"][-1]["value"] == 499
+
+
+def test_gather_data_does_not_wrap_small_tabs(sheets, fake_config, prompts_dir):
+    sheets.ensure_tab("SmallTab", ["week", "value"])
+    for i in range(10):
+        sheets.append_row("SmallTab", [f"2024-W{i:03d}", i])
+
+    class SmallAgent(_TabAgent):
+        data_tabs = ["SmallTab"]
+
+    claude = StubClaudeClient(next_text=_good_response_json())
+    agent = SmallAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
+    data = agent.gather_data()
+    assert isinstance(data["SmallTab"], list)
+    assert len(data["SmallTab"]) == 10
+
+
 def test_subclass_requires_name_and_role_file(sheets, fake_config, prompts_dir):
     class NoName(BaseAgent):
         role_prompt_file = "ads.md"
