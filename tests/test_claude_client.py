@@ -3,10 +3,28 @@ import json
 import pytest
 
 from scripts.claude_client import (
+    ClaudeClient,
     ClaudeResponse,
     parse_json_response,
     strip_json_fences,
 )
+
+
+def test_real_client_constructs_without_error():
+    """Smoke test: real ClaudeClient must construct successfully.
+
+    The agent stubs in other tests never instantiate the real anthropic SDK,
+    so dependency incompatibilities (e.g. anthropic 0.39 + httpx >=0.28
+    failing with 'unexpected keyword argument: proxies') slip through.
+    This test catches those at CI time.
+    """
+    client = ClaudeClient(api_key="sk-fake-not-used", model="claude-sonnet-4-5-20250929")
+    assert client.model == "claude-sonnet-4-5-20250929"
+
+
+def test_real_client_requires_api_key():
+    with pytest.raises(ValueError):
+        ClaudeClient(api_key="", model="claude-sonnet-4-5-20250929")
 
 
 def test_strip_fences_handles_plain_json():
