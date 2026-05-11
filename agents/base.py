@@ -27,6 +27,28 @@ from scripts.sheets_client import MemoRow, SheetsClient
 
 MAX_RAW_RESPONSE_CHARS = 8000
 
+
+def render_baseline_block(rows: list[dict]) -> str:
+    """Render the baseline tab rows into a text block for the system prompt.
+
+    Empty baseline returns a short note rather than an empty string — agents
+    rely on consistent prompt structure for the cache prefix to match.
+    """
+    if not rows:
+        return "(no baseline yet — first run, weekly data is the only signal)"
+    parts: list[str] = []
+    for row in rows:
+        header = f"[{row['section']}]"
+        meta_bits = []
+        if row.get("last_updated"):
+            meta_bits.append(f"updated {row['last_updated']}")
+        if row.get("confidence"):
+            meta_bits.append(f"confidence={row['confidence']}")
+        if meta_bits:
+            header += f"  ({', '.join(meta_bits)})"
+        parts.append(f"{header}\n{row['content']}")
+    return "\n\n".join(parts)
+
 JSON_OUTPUT_INSTRUCTION = """Produce a structured analysis as a JSON object matching this schema:
 {
   "summary": "1-2 sentence top-line",
@@ -139,12 +161,12 @@ class BaseAgent:
 
     # ---- subclass hooks ----
     data_tabs: list[str] = []  # subclass override: tabs to read in gather_data()
-    # Cap per-tab rows before sending to Claude. 12 weeks (~3 months) is
-    # enough for w/w trend detection; the agent's prior memos (in the memory
-    # block) already carry longer-horizon context, so the raw history dump
-    # doesn't need to span the full year. Subclasses can override for
-    # denser-data domains (e.g. per-ad data, daily IG posts).
-    max_rows_per_tab: int = 12
+    # Cap per-tab rows before sending to Claude. 4 weeks is enough for w/w
+    # trend detection — the BASELINE tab carries the long-run wisdom
+    # (what's normal, seasonal patterns), so the weekly raw data only
+    # needs the recent window. Subclasses can override for denser-data
+    # domains (e.g. per-ad data, daily IG posts).
+    max_rows_per_tab: int = 4
 
     def gather_data(self) -> dict[str, Any]:
         """Default: read each tab in `data_tabs`, keeping at most
@@ -186,32 +208,50 @@ class BaseAgent:
     def get_role_prompt(self) -> str:
         return self._load_text(self.role_prompt_file)
 
+    def _load_baseline(self) -> list[dict]:
+        """Read the agent's BASELINE: <Agent> tab. Empty list if the tab
+        is missing or has no rows yet — a fresh deploy has no baselines."""
+        try:
+            return self.sheets.read_baseline_for_agent(self.name)
+        except Exception:
+            return []
+
     def build_prompt(
         self,
         *,
         role_prompt: str,
         business_context: str,
+        baseline: list[dict],
         memory: AgentMemory,
         data: dict[str, Any],
     ) -> tuple[list[dict], str]:
         """Returns (system_blocks, user_message).
 
         The system blocks are stable within a weekly run — role prompt and
-        business context are identical across all 7 specialists, and the
-        memory block is fixed for the duration of one agent's call. A
-        `cache_control` breakpoint on the memory block tells Anthropic to
-        cache everything up to that point (role + context + memory), so the
-        next agent in the run reads the role+context prefix from cache at
-        ~10% of the normal rate.
+        business context are identical across all 7 specialists, the
+        baseline is refreshed monthly (not weekly), and the memory block
+        is fixed for the duration of one agent's call. A `cache_control`
+        breakpoint on the memory block tells Anthropic to cache everything
+        up to that point, so the next agent in the run reads the role +
+        context prefix from cache at ~10% of the normal rate.
 
         The user message carries this week's raw data and the output
         instruction — the volatile part that legitimately changes per run.
         """
         memory_block = render_memory_block(memory)
+        baseline_block = render_baseline_block(baseline)
         data_block = json.dumps(data, indent=2, default=str)
         system_blocks: list[dict] = [
             {"type": "text", "text": role_prompt},
             {"type": "text", "text": f"BUSINESS CONTEXT:\n{business_context}"},
+            {
+                "type": "text",
+                "text": (
+                    "AGENT BASELINE (curated long-run patterns — these are "
+                    "what NORMAL looks like for this business; flag deviations):\n"
+                    f"{baseline_block}"
+                ),
+            },
             {
                 "type": "text",
                 "text": f"MEMORY (read carefully — lessons are HARD RULES):\n{memory_block}",
@@ -273,11 +313,13 @@ class BaseAgent:
         try:
             role = self.get_role_prompt()
             context = self.get_business_context()
+            baseline = self._load_baseline()
             memory = load_agent_memory(self.sheets, self.name)
             data = self.gather_data()
             system_blocks, user_message = self.build_prompt(
                 role_prompt=role,
                 business_context=context,
+                baseline=baseline,
                 memory=memory,
                 data=data,
             )

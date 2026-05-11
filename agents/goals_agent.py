@@ -168,14 +168,23 @@ class GoalsAgent(BaseAgent):
         }
 
     # ---- prompt assembly: swap the JSON instruction for the coordinator schema ----
-    def build_prompt(self, *, role_prompt, business_context, memory, data):
+    def build_prompt(self, *, role_prompt, business_context, baseline, memory, data):
+        from agents.base import render_baseline_block
         from scripts.memory import render_memory_block
 
         memory_block = render_memory_block(memory)
+        baseline_block = render_baseline_block(baseline)
         data_block = json.dumps(data, indent=2, default=str)
         system_blocks: list[dict] = [
             {"type": "text", "text": role_prompt},
             {"type": "text", "text": f"BUSINESS CONTEXT:\n{business_context}"},
+            {
+                "type": "text",
+                "text": (
+                    "COORDINATOR BASELINE (long-run patterns across the business):\n"
+                    f"{baseline_block}"
+                ),
+            },
             {
                 "type": "text",
                 "text": f"MEMORY (read carefully — lessons are HARD RULES):\n{memory_block}",

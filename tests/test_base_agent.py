@@ -294,7 +294,9 @@ def test_gather_data_caps_rows_per_tab(sheets, fake_config, prompts_dir):
 
 def test_gather_data_does_not_wrap_small_tabs(sheets, fake_config, prompts_dir):
     sheets.ensure_tab("SmallTab", ["week", "value"])
-    for i in range(10):
+    # 3 rows is below the default cap of 4, so the payload should pass
+    # through as a raw list (no _total_rows / _kept_last envelope).
+    for i in range(3):
         sheets.append_row("SmallTab", [f"2024-W{i:03d}", i])
 
     class SmallAgent(_TabAgent):
@@ -304,27 +306,72 @@ def test_gather_data_does_not_wrap_small_tabs(sheets, fake_config, prompts_dir):
     agent = SmallAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
     data = agent.gather_data()
     assert isinstance(data["SmallTab"], list)
-    assert len(data["SmallTab"]) == 10
+    assert len(data["SmallTab"]) == 3
 
 
 def test_build_prompt_emits_cacheable_system_blocks(sheets, fake_config, prompts_dir):
-    """The memory block must carry cache_control so the role+context prefix
-    is cached for the next agent in the run."""
+    """The memory block must carry cache_control so the role+context+baseline
+    prefix is cached for the next agent in the run."""
     claude = StubClaudeClient(next_text=_good_response_json())
     agent = StubAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
     agent.run()
 
     sys_blocks = claude.last_system
     assert isinstance(sys_blocks, list)
-    assert len(sys_blocks) == 3  # role + context + memory
+    assert len(sys_blocks) == 4  # role + context + baseline + memory
     # cache_control on the last (memory) block caches everything above it.
     assert sys_blocks[-1].get("cache_control") == {"type": "ephemeral"}
-    # role and context blocks are stable across all 7 agents in a run.
+    # role / context / baseline blocks are stable across the weekly run.
     assert sys_blocks[0]["text"]  # role
     assert "BUSINESS CONTEXT" in sys_blocks[1]["text"]
+    assert "AGENT BASELINE" in sys_blocks[2]["text"]
     # The volatile per-week data lives in the user message, not system.
     assert "THIS WEEK'S DATA" in claude.last_user_message
     assert "BUSINESS CONTEXT" not in claude.last_user_message
+
+
+def test_baseline_rows_appear_in_system_block(sheets, fake_config, prompts_dir):
+    """Curated baseline sections render as named blocks the agent can read."""
+    # Seed the BASELINE: AdsAgent tab. StubAgent.name == "AdsAgent".
+    sheets.append_row(
+        "BASELINE: AdsAgent",
+        [
+            "normal_metrics_range",
+            "Prospect ASC CPM typically $18-25; CTR 1.4-1.8%.",
+            "2026-04-15",
+            "high",
+        ],
+    )
+    sheets.append_row(
+        "BASELINE: AdsAgent",
+        [
+            "attribution_caveats",
+            "RT-customer ROAS is ~50% WhatsApp-inflated.",
+            "2026-04-15",
+            "high",
+        ],
+    )
+
+    claude = StubClaudeClient(next_text=_good_response_json())
+    agent = StubAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
+    agent.run()
+
+    baseline_block = claude.last_system[2]["text"]
+    assert "[normal_metrics_range]" in baseline_block
+    assert "Prospect ASC CPM" in baseline_block
+    assert "[attribution_caveats]" in baseline_block
+    assert "confidence=high" in baseline_block
+
+
+def test_empty_baseline_renders_placeholder(sheets, fake_config, prompts_dir):
+    """First-run case: no baseline rows yet. The block stays present in the
+    system prefix (so the cache key shape is stable) with a clear placeholder."""
+    claude = StubClaudeClient(next_text=_good_response_json())
+    agent = StubAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
+    agent.run()
+
+    baseline_block = claude.last_system[2]["text"]
+    assert "no baseline yet" in baseline_block
 
 
 def test_preferred_model_is_forwarded_to_client(sheets, fake_config, prompts_dir):
@@ -348,9 +395,9 @@ def test_preferred_model_defaults_to_none(sheets, fake_config, prompts_dir):
     assert claude.last_model is None
 
 
-def test_default_max_rows_per_tab_is_12(sheets, fake_config, prompts_dir):
-    """12 weeks of history is enough for w/w trend detection; the memory
-    layer carries longer-horizon context."""
+def test_default_max_rows_per_tab_is_4(sheets, fake_config, prompts_dir):
+    """4 weeks is enough for w/w trend detection; the BASELINE tab carries
+    the long-run wisdom that 12 weeks of raw data used to approximate."""
 
     class DefaultCapAgent(_TabAgent):
         data_tabs = ["WeeklyTab"]
@@ -363,8 +410,8 @@ def test_default_max_rows_per_tab_is_12(sheets, fake_config, prompts_dir):
     agent = DefaultCapAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
     data = agent.gather_data()
     payload = data["WeeklyTab"]
-    assert payload["_kept_last"] == 12
-    assert len(payload["rows"]) == 12
+    assert payload["_kept_last"] == 4
+    assert len(payload["rows"]) == 4
 
 
 def test_subclass_requires_name_and_role_file(sheets, fake_config, prompts_dir):
