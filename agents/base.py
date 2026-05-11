@@ -113,6 +113,10 @@ class BaseAgent:
 
     name: str = ""
     role_prompt_file: str = ""  # relative to prompts/ dir, e.g. "ads.md"
+    # Override in subclasses to route a specific agent to a cheaper model
+    # (e.g. Haiku for pattern-matching agents like Content/SEO). `None` means
+    # use the client's default model (set from config.anthropic_model).
+    preferred_model: str | None = None
 
     def __init__(
         self,
@@ -135,10 +139,12 @@ class BaseAgent:
 
     # ---- subclass hooks ----
     data_tabs: list[str] = []  # subclass override: tabs to read in gather_data()
-    # Cap per-tab rows before sending to Claude. Most weekly decisions only
-    # need recent rows; full historical dumps blow past the 200k token limit.
-    # Subclasses can override for denser-data domains (e.g. per-ad data).
-    max_rows_per_tab: int = 50
+    # Cap per-tab rows before sending to Claude. 12 weeks (~3 months) is
+    # enough for w/w trend detection; the agent's prior memos (in the memory
+    # block) already carry longer-horizon context, so the raw history dump
+    # doesn't need to span the full year. Subclasses can override for
+    # denser-data domains (e.g. per-ad data, daily IG posts).
+    max_rows_per_tab: int = 12
 
     def gather_data(self) -> dict[str, Any]:
         """Default: read each tab in `data_tabs`, keeping at most
@@ -187,16 +193,36 @@ class BaseAgent:
         business_context: str,
         memory: AgentMemory,
         data: dict[str, Any],
-    ) -> str:
+    ) -> tuple[list[dict], str]:
+        """Returns (system_blocks, user_message).
+
+        The system blocks are stable within a weekly run — role prompt and
+        business context are identical across all 7 specialists, and the
+        memory block is fixed for the duration of one agent's call. A
+        `cache_control` breakpoint on the memory block tells Anthropic to
+        cache everything up to that point (role + context + memory), so the
+        next agent in the run reads the role+context prefix from cache at
+        ~10% of the normal rate.
+
+        The user message carries this week's raw data and the output
+        instruction — the volatile part that legitimately changes per run.
+        """
         memory_block = render_memory_block(memory)
         data_block = json.dumps(data, indent=2, default=str)
-        return (
-            f"{role_prompt}\n\n"
-            f"BUSINESS CONTEXT:\n{business_context}\n\n"
-            f"MEMORY (read carefully — lessons are HARD RULES):\n{memory_block}\n\n"
+        system_blocks: list[dict] = [
+            {"type": "text", "text": role_prompt},
+            {"type": "text", "text": f"BUSINESS CONTEXT:\n{business_context}"},
+            {
+                "type": "text",
+                "text": f"MEMORY (read carefully — lessons are HARD RULES):\n{memory_block}",
+                "cache_control": {"type": "ephemeral"},
+            },
+        ]
+        user_message = (
             f"THIS WEEK'S DATA:\n{data_block}\n\n"
             f"{JSON_OUTPUT_INSTRUCTION}\n"
         )
+        return system_blocks, user_message
 
     # ---- response handling ----
     def parse_response(self, raw_text: str) -> AgentMemo:
@@ -249,13 +275,17 @@ class BaseAgent:
             context = self.get_business_context()
             memory = load_agent_memory(self.sheets, self.name)
             data = self.gather_data()
-            prompt = self.build_prompt(
+            system_blocks, user_message = self.build_prompt(
                 role_prompt=role,
                 business_context=context,
                 memory=memory,
                 data=data,
             )
-            response = self.claude.complete(prompt)
+            response = self.claude.complete(
+                user_message,
+                system=system_blocks,
+                model=self.preferred_model,
+            )
             memo = self.parse_response(response.text)
             self.write_memo(memo)
 

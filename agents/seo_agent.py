@@ -14,6 +14,10 @@ from agents.base import BaseAgent
 class SEOAgent(BaseAgent):
     name = "SEOAgent"
     role_prompt_file = "seo.md"
+    # SEO recommendations follow well-known playbooks (title tag fixes,
+    # content gap analysis, local listings hygiene) — pattern work where
+    # Haiku performs well at ~1/3 the cost.
+    preferred_model = "claude-haiku-4-5"
     data_tabs = [
         "Landing Pages",
         "GBP Performance",

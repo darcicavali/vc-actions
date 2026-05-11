@@ -71,3 +71,28 @@ def test_cost_calc_falls_back_for_unknown_model():
     )
     # fallback = default = $3/M input
     assert resp.cost_usd == pytest.approx(1.5, rel=1e-6)
+
+
+def test_cost_calc_uses_haiku_rates():
+    resp = ClaudeResponse(
+        text="x",
+        input_tokens=1_000_000,
+        output_tokens=1_000_000,
+        model="claude-haiku-4-5",
+    )
+    # Haiku: $1/M input + $5/M output = $6
+    assert resp.cost_usd == pytest.approx(6.0, rel=1e-6)
+
+
+def test_cost_calc_applies_cache_pricing():
+    """Cache reads cost 0.1x base input; cache writes cost 1.25x."""
+    resp = ClaudeResponse(
+        text="x",
+        input_tokens=0,
+        output_tokens=0,
+        model="claude-sonnet-4-5-20250929",
+        cache_creation_input_tokens=1_000_000,  # 1M tokens written to cache
+        cache_read_input_tokens=1_000_000,  # 1M tokens read from cache
+    )
+    # write = 3.0 * 1.25 = $3.75; read = 3.0 * 0.1 = $0.30; total = $4.05
+    assert resp.cost_usd == pytest.approx(4.05, rel=1e-6)
