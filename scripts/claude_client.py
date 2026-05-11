@@ -54,7 +54,12 @@ def strip_json_fences(raw: str) -> str:
 class ClaudeClient:
     """Wraps anthropic.Anthropic. Single method: complete(prompt) -> ClaudeResponse."""
 
-    def __init__(self, api_key: str, model: str, max_tokens: int = 4096):
+    # Observed: successful agent runs produce 1200-1700 output tokens. 2500
+    # leaves headroom without inflating per-minute token usage that pushes
+    # us into rate-limit territory.
+    DEFAULT_MAX_TOKENS = 2500
+
+    def __init__(self, api_key: str, model: str, max_tokens: int = DEFAULT_MAX_TOKENS):
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY is required")
         self._client = anthropic.Anthropic(api_key=api_key)

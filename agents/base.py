@@ -135,9 +135,14 @@ class BaseAgent:
 
     # ---- subclass hooks ----
     data_tabs: list[str] = []  # subclass override: tabs to read in gather_data()
+    # Cap per-tab rows before sending to Claude. Most weekly decisions only
+    # need recent rows; full historical dumps blow past the 200k token limit.
+    # Subclasses can override for denser-data domains (e.g. per-ad data).
+    max_rows_per_tab: int = 50
 
     def gather_data(self) -> dict[str, Any]:
-        """Default: read each tab in `data_tabs`. Missing tabs become
+        """Default: read each tab in `data_tabs`, keeping at most
+        `max_rows_per_tab` of the most recent rows. Missing tabs become
         `{"error": ...}` placeholders so a missing sheet doesn't kill the run.
         Override for agents that need custom data shaping.
         """
@@ -146,11 +151,23 @@ class BaseAgent:
                 f"{type(self).__name__} must either set `data_tabs` or override `gather_data()`"
             )
         out: dict[str, Any] = {}
+        cap = self.max_rows_per_tab
         for tab in self.data_tabs:
             try:
-                out[tab] = self.sheets.read_tab(tab)
+                rows = self.sheets.read_tab(tab)
             except Exception as e:
                 out[tab] = {"error": f"{type(e).__name__}: {e}"}
+                continue
+            if isinstance(rows, list) and cap and len(rows) > cap:
+                # Keep the last N rows. Sheets are typically chronologically
+                # ordered (oldest at top); the tail is the most recent.
+                out[tab] = {
+                    "_total_rows": len(rows),
+                    "_kept_last": cap,
+                    "rows": rows[-cap:],
+                }
+            else:
+                out[tab] = rows
         return out
 
     # ---- prompt assembly ----

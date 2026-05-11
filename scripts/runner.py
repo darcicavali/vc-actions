@@ -15,7 +15,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+import time
 import traceback
 from typing import Iterable
 
@@ -46,6 +48,21 @@ SPECIALIST_CLASSES: list[type[BaseAgent]] = [
     SEOAgent,
 ]
 
+# Pause between specialist runs to stay under Claude's per-minute token rate
+# limit (default tier: 30k input tokens/minute). Overridable via env var so
+# users on higher tiers can shorten or skip the pause.
+DEFAULT_INTER_AGENT_DELAY_SECONDS = 60
+
+
+def _inter_agent_delay() -> int:
+    raw = os.environ.get("VC_ACTIONS_INTER_AGENT_DELAY_SECONDS")
+    if raw is None:
+        return DEFAULT_INTER_AGENT_DELAY_SECONDS
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return DEFAULT_INTER_AGENT_DELAY_SECONDS
+
 
 def _build_clients(config: Config) -> tuple[ClaudeClient, SheetsClient]:
     claude = ClaudeClient(api_key=config.anthropic_api_key, model=config.anthropic_model)
@@ -58,7 +75,8 @@ def _run_specialists(
 ) -> dict[str, str]:
     """Returns {agent_name: status} ('ok' or short error string)."""
     statuses: dict[str, str] = {}
-    for cls in SPECIALIST_CLASSES:
+    delay = _inter_agent_delay()
+    for i, cls in enumerate(SPECIALIST_CLASSES):
         agent = cls(claude, sheets, config, dry_run=dry_run)
         print(f"[{agent.name}] running...")
         try:
@@ -69,6 +87,12 @@ def _run_specialists(
             statuses[agent.name] = f"{type(e).__name__}: {e}"
             print(f"[{agent.name}] FAILED: {statuses[agent.name]}")
             print(traceback.format_exc())
+        # Sleep between agents to stay under rate limits. Skip after the last
+        # specialist (the coordinator follows but uses memo data, not raw
+        # sheet dumps, so its prompt is much smaller).
+        if delay and i < len(SPECIALIST_CLASSES) - 1:
+            print(f"[runner] sleeping {delay}s before next agent...")
+            time.sleep(delay)
     return statuses
 
 

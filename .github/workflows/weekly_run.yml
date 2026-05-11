@@ -39,6 +39,10 @@ jobs:
           OMNISEND_DIGEST_EVENT: ${{ vars.OMNISEND_DIGEST_EVENT || 'vc_weekly_plan' }}
           OMNISEND_DIGEST_RECIPIENT: ${{ vars.OMNISEND_DIGEST_RECIPIENT }}
           VC_ACTIONS_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          # Seconds to sleep between specialist agents. 60s keeps us under
+          # the Anthropic default-tier 30k input tokens/minute rate limit.
+          # Set to 0 if you're on a higher API tier.
+          VC_ACTIONS_INTER_AGENT_DELAY_SECONDS: ${{ vars.VC_ACTIONS_INTER_AGENT_DELAY_SECONDS || '60' }}
         run: python -m scripts.runner
 
   test:
