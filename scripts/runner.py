@@ -1,0 +1,153 @@
+"""Weekly run orchestrator.
+
+Phase 1: run all 7 specialists (one fail does not block the others).
+Phase 2: run the coordinator (GoalsAgent), which reads what landed.
+Phase 3: send the digest email via Omnisend (skipped in dry-run mode).
+
+Honors `VC_ACTIONS_DRY_RUN=true` — agents print memos instead of writing
+to the sheet, and the digest email is skipped.
+
+Usage:
+    python -m scripts.runner               # live run
+    VC_ACTIONS_DRY_RUN=true python -m scripts.runner    # safe preview
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+import traceback
+from typing import Iterable
+
+from agents import (
+    AdsAgent,
+    BaseAgent,
+    ContentAgent,
+    CustomerAgent,
+    FinancialAgent,
+    FunnelAgent,
+    GoalsAgent,
+    ProductAgent,
+    SEOAgent,
+)
+from scripts.claude_client import ClaudeClient
+from scripts.config import Config, get_config
+from scripts.omnisend_client import OmnisendClient
+from scripts.sheets_client import SheetsClient
+
+
+SPECIALIST_CLASSES: list[type[BaseAgent]] = [
+    AdsAgent,
+    CustomerAgent,
+    ProductAgent,
+    ContentAgent,
+    FunnelAgent,
+    FinancialAgent,
+    SEOAgent,
+]
+
+
+def _build_clients(config: Config) -> tuple[ClaudeClient, SheetsClient]:
+    claude = ClaudeClient(api_key=config.anthropic_api_key, model=config.anthropic_model)
+    sheets = SheetsClient.from_config(config)
+    return claude, sheets
+
+
+def _run_specialists(
+    config: Config, claude: ClaudeClient, sheets: SheetsClient, dry_run: bool
+) -> dict[str, str]:
+    """Returns {agent_name: status} ('ok' or short error string)."""
+    statuses: dict[str, str] = {}
+    for cls in SPECIALIST_CLASSES:
+        agent = cls(claude, sheets, config, dry_run=dry_run)
+        print(f"[{agent.name}] running...")
+        try:
+            memo = agent.run()
+            statuses[agent.name] = "ok"
+            print(f"[{agent.name}] {len(memo.recommendations)} recs")
+        except Exception as e:
+            statuses[agent.name] = f"{type(e).__name__}: {e}"
+            print(f"[{agent.name}] FAILED: {statuses[agent.name]}")
+            print(traceback.format_exc())
+    return statuses
+
+
+def _run_coordinator(
+    config: Config, claude: ClaudeClient, sheets: SheetsClient, dry_run: bool
+) -> GoalsAgent | None:
+    coordinator = GoalsAgent(claude, sheets, config, dry_run=dry_run)
+    print(f"[{coordinator.name}] running...")
+    try:
+        coordinator.run()
+        print(f"[{coordinator.name}] ok")
+        return coordinator
+    except Exception as e:
+        print(f"[{coordinator.name}] FAILED: {type(e).__name__}: {e}")
+        print(traceback.format_exc())
+        return None
+
+
+def _send_digest_email(config: Config, coordinator: GoalsAgent) -> None:
+    plan = coordinator.last_plan
+    if plan is None:
+        print("[digest] no plan to send")
+        return
+    if not config.omnisend_api_key or not config.omnisend_digest_recipient:
+        print("[digest] Omnisend not configured — skipping email")
+        return
+    client = OmnisendClient(api_key=config.omnisend_api_key)
+    result = client.trigger_event(
+        event_name=config.omnisend_digest_event,
+        recipient_email=config.omnisend_digest_recipient,
+        properties={
+            "summary": plan.summary,
+            "one_thing_this_week": plan.one_thing_this_week,
+            "email_body": plan.summary_email_body,
+            "generated_at": plan.generated_at,
+        },
+    )
+    print(f"[digest] omnisend status={result.status_code}")
+
+
+def run_weekly(*, dry_run: bool | None = None) -> int:
+    config = get_config()
+    effective_dry_run = config.dry_run if dry_run is None else dry_run
+
+    print(f"[runner] starting weekly run (dry_run={effective_dry_run})")
+
+    # In dry-run we still need a real sheets connection to READ data,
+    # but no writes will happen because agents short-circuit.
+    claude, sheets = _build_clients(config)
+
+    if not effective_dry_run:
+        # First-run safety: make sure every tab + correct headers exist.
+        try:
+            sheets.ensure_all_tabs()
+        except Exception as e:
+            print(f"[runner] ensure_all_tabs failed: {e}")
+
+    statuses = _run_specialists(config, claude, sheets, dry_run=effective_dry_run)
+
+    coordinator = _run_coordinator(config, claude, sheets, dry_run=effective_dry_run)
+    if coordinator and coordinator.last_plan and not effective_dry_run:
+        _send_digest_email(config, coordinator)
+
+    failures = [name for name, status in statuses.items() if status != "ok"]
+    print(f"[runner] done. specialist failures: {failures or 'none'}")
+    return 0 if not failures else 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="vc-actions weekly run")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print memos instead of writing to the sheet; skip the digest email.",
+    )
+    args = parser.parse_args(argv)
+    dry_run_override = True if args.dry_run else None
+    return run_weekly(dry_run=dry_run_override)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

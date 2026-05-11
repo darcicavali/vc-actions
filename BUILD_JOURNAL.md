@@ -149,3 +149,113 @@ review.
 
 
 
+
+---
+
+## 2026-05-11 — Session 2: Remaining specialists + GoalsAgent + runner
+
+### Session goal
+After Session 1 was approved, build the other 6 specialist agents
+(CustomerAgent, ProductAgent, ContentAgent, FunnelAgent, FinancialAgent,
+SEOAgent), then the GoalsAgent coordinator, the runner that orchestrates
+the weekly run, the GitHub Actions workflow, and a dry-run mode the user
+asked for.
+
+### What was attempted
+- Added `dry_run` mode to `BaseAgent` (printable preview, no sheet writes,
+  no Runtime Log write). Surfaced as `--dry-run` CLI flag on the runner
+  and `VC_ACTIONS_DRY_RUN` env var.
+- Extracted shared specialist boilerplate into `BaseAgent.data_tabs` +
+  default `gather_data()`. Each specialist is now a ~15-line file that
+  declares `name`, `role_prompt_file`, `data_tabs`.
+- Built `CustomerAgent`, `ProductAgent`, `ContentAgent`, `FunnelAgent`,
+  `FinancialAgent`, `SEOAgent` using that pattern.
+- Added a parametrized test (`tests/test_specialists.py`) that runs every
+  specialist class through a full `run()` and verifies the prompt file
+  exists, tabs land in the prompt, and a memo + Runtime Log row are
+  written.
+- Built `GoalsAgent` (coordinator). It overrides `gather_data` to read
+  this-run specialist memos + Goal Tracker + Weekly Summary; overrides
+  `build_prompt` to use the coordinator schema; overrides `parse_response`
+  to produce both an `AgentMemo` (for the memory layer to find next week)
+  AND an `ActionPlan` dataclass; overrides `write_memo` to append to
+  `Agent Memos` and OVERWRITE the `Action Plan` tab.
+- Added `SheetsClient.write_action_plan(...)` and tightened
+  `FakeWorksheet.update` to handle multi-row replacements.
+- Built `scripts/runner.py` with 3 phases: specialists (failure-isolated
+  per agent) → coordinator → Omnisend digest email (skipped if not
+  configured or in dry-run). CLI entrypoint: `python -m scripts.runner
+  [--dry-run]`.
+- Added `.github/workflows/weekly_run.yml` — Monday 13:00 UTC cron + a
+  manual-trigger button with a dry-run input + a separate test job.
+- Tests: 57 passing, ~0.3s. Includes runner happy-path, runner with one
+  injected specialist failure (coordinator still runs), and runner
+  dry-run (zero sheet writes anywhere).
+
+### What worked
+- The single `data_tabs` declaration kept each new specialist tiny.
+  Adding agents is now near-free.
+- Routing GoalsAgent output through BOTH `Agent Memos` AND `Action Plan`
+  means the memory layer "just works" for the coordinator next week —
+  no custom loader needed.
+- The runner's failure isolation is per-agent `try/except` AROUND `run()`,
+  not inside it. Specialists still get their own Runtime Log row on
+  failure (BaseAgent's `try/finally` handles that).
+- The stub Claude in `tests/test_runner.py` distinguishes specialist vs.
+  coordinator prompts by looking for `"sequenced_actions"` in the prompt
+  text. Simple and robust without parsing JSON.
+
+### What failed / had to retry
+- `FakeWorksheet.update` originally only handled single-row A1 writes
+  (sufficient for `ensure_tab`). The Action Plan overwrite is two rows
+  (headers + data), so it had to be generalized to replace the whole row
+  range. That broke nothing else.
+- Initial `test_action_plan_is_overwritten_not_appended` ran without
+  prior memos and the coordinator returned 0 memos. Fixed by seeding
+  specialist memos via `_seed_specialist_memos` before each run.
+- The injected-failure test originally used agent class names as needles
+  to detect which prompt to fail. That was unreliable (the class name
+  isn't in the prompt). Switched to a fragment of the role prompt
+  (`"CRM & Lifecycle Specialist"` — the heading of customer.md).
+
+### Decisions made
+- **Dry-run is per-instance with config fallback.** Each agent accepts
+  `dry_run=...` in `__init__`; if not passed, falls back to
+  `config.dry_run`. This lets the runner force dry-run via CLI while
+  still respecting env config.
+- **Coordinator writes to BOTH tabs.** `Action Plan` is the structured,
+  weekly-overwritten plan; `Agent Memos` gets a coordinator entry so the
+  memory layer sees its own history.
+- **Action Plan tab is fully overwritten on each write** (header row +
+  one data row). Matches v4 spec "overwritten weekly."
+- **Runner returns non-zero exit code if any specialist failed.**
+  Coordinator failures alone also count. Lets GitHub Actions surface
+  red runs.
+- **Workflow cron at 13:00 UTC.** That's 8 AM CDT (DST) / 7 AM CST.
+  Better than getting 9 AM during DST shoulder. Can be adjusted if Darci
+  prefers exactly 8 AM CST.
+- **Specialists use the natural tab names from v4 spec verbatim.** User
+  confirmed Meta Ads tab names match; the others are best-guess until
+  verified against the live `vc-dashboard` sheet. Missing tabs degrade
+  to error placeholders, so a mismatch won't crash a run — it'll just
+  show up in `data_quality` from Claude.
+
+### Open questions
+- Tab name verification for the non-Meta specialists. Best done by
+  running `--dry-run` against the real sheet and seeing which tabs come
+  back as `{"error": "WorksheetNotFound"}` in the data block.
+- Goal Tracker auto-population — spec says it's manually maintained by
+  Darci. No bootstrap rows beyond headers. Confirm before first live
+  run.
+- The Omnisend automation must be created MANUALLY by Darci. The runner
+  just triggers an event named `vc_weekly_plan` (configurable); Omnisend
+  has to be configured to listen and render the email body from the
+  event properties.
+
+### Learnings for future sessions
+- A 15-line specialist file is the right size. Don't add logic to them —
+  if data needs munging, do it in `BaseAgent` or a helper.
+- The "Coordinator memo also lives in Agent Memos" choice pays for
+  itself in week 2 — no special-case code in the memory layer.
+- For workflow YAML, prefer `vars` for non-secret config (model name,
+  recipient email) and `secrets` only for credentials. Easier rotation.

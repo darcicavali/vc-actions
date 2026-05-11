@@ -120,6 +120,7 @@ class BaseAgent:
         sheets_client: SheetsClient,
         config: Config,
         prompts_dir: Path | None = None,
+        dry_run: bool | None = None,
     ):
         if not self.name:
             raise ValueError(f"{type(self).__name__} must set `name`")
@@ -129,10 +130,28 @@ class BaseAgent:
         self.sheets = sheets_client
         self.config = config
         self.prompts_dir = prompts_dir or PROMPTS_DIR
+        # Per-instance override wins; otherwise fall back to config.
+        self.dry_run = config.dry_run if dry_run is None else dry_run
 
     # ---- subclass hooks ----
+    data_tabs: list[str] = []  # subclass override: tabs to read in gather_data()
+
     def gather_data(self) -> dict[str, Any]:
-        raise NotImplementedError
+        """Default: read each tab in `data_tabs`. Missing tabs become
+        `{"error": ...}` placeholders so a missing sheet doesn't kill the run.
+        Override for agents that need custom data shaping.
+        """
+        if not self.data_tabs:
+            raise NotImplementedError(
+                f"{type(self).__name__} must either set `data_tabs` or override `gather_data()`"
+            )
+        out: dict[str, Any] = {}
+        for tab in self.data_tabs:
+            try:
+                out[tab] = self.sheets.read_tab(tab)
+            except Exception as e:
+                out[tab] = {"error": f"{type(e).__name__}: {e}"}
+        return out
 
     # ---- prompt assembly ----
     def _load_text(self, filename: str) -> str:
@@ -178,7 +197,31 @@ class BaseAgent:
         )
 
     def write_memo(self, memo: AgentMemo) -> None:
+        if self.dry_run:
+            self._print_dry_run_memo(memo)
+            return
         self.sheets.append_memo(memo.to_memo_row())
+
+    def _print_dry_run_memo(self, memo: AgentMemo) -> None:
+        bar = "=" * 72
+        print(f"\n{bar}\n[DRY RUN] {memo.agent} — {memo.generated_at}\n{bar}")
+        print(f"SUMMARY: {memo.summary}")
+        print(f"DIAGNOSIS: {memo.diagnosis}")
+        print("RECOMMENDATIONS:")
+        for r in memo.recommendations:
+            print(
+                f"  P{r.priority} {r.action} "
+                f"(${r.impact_dollars_per_week}/wk, "
+                f"{r.confidence}/{r.effort})"
+            )
+            if r.why:
+                print(f"      why: {r.why}")
+        if memo.watch_list:
+            print("WATCH:")
+            for w in memo.watch_list:
+                print(f"  - {w}")
+        print(f"DATA QUALITY: {memo.data_quality}")
+        print(bar)
 
     # ---- orchestration ----
     def run(self) -> AgentMemo:
@@ -210,8 +253,16 @@ class BaseAgent:
             raise
         finally:
             entry.duration_seconds = time.time() - start
-            try:
-                write_runtime_entry(self.sheets, entry)
-            except Exception:
-                # Never let logging mask the real failure.
-                pass
+            if self.dry_run:
+                print(
+                    f"[DRY RUN] {self.name} runtime: "
+                    f"{entry.duration_seconds:.2f}s, "
+                    f"in={entry.input_tokens}, out={entry.output_tokens}, "
+                    f"cost=${entry.cost_usd:.4f}, status={entry.status}"
+                )
+            else:
+                try:
+                    write_runtime_entry(self.sheets, entry)
+                except Exception:
+                    # Never let logging mask the real failure.
+                    pass

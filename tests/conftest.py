@@ -38,10 +38,8 @@ class FakeWorksheet:
             raise NotImplementedError(f"FakeWorksheet.update only supports A1, got {cell}")
         if not values:
             return
-        if not self._rows:
-            self._rows.append(list(values[0]))
-        else:
-            self._rows[0] = list(values[0])
+        # Replace from row 1 down. Truncates anything past the new content.
+        self._rows = [list(r) for r in values]
 
     def append_row(self, row: list, value_input_option: str = "USER_ENTERED") -> None:
         self._rows.append(list(row))

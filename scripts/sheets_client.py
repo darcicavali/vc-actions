@@ -333,6 +333,34 @@ class SheetsClient:
         out.sort(key=lambda o: o.plan_week_start, reverse=True)
         return out
 
+    # ---- action plan (coordinator output, overwritten weekly) ----
+    def write_action_plan(
+        self,
+        *,
+        generated_at: str,
+        one_thing_this_week: str,
+        pace_status: dict | str,
+        gap_to_close: str,
+        sequenced_actions: list[dict],
+        themes: list[dict],
+        conflicts_resolved: str,
+        watch_list: list[str],
+    ) -> None:
+        ws = self.get_worksheet("Action Plan")
+        headers = TAB_SCHEMAS["Action Plan"]
+        row = [
+            generated_at,
+            one_thing_this_week,
+            json.dumps(pace_status) if isinstance(pace_status, dict) else str(pace_status),
+            gap_to_close,
+            json.dumps(sequenced_actions),
+            json.dumps(themes),
+            conflicts_resolved,
+            json.dumps(watch_list),
+        ]
+        # Replace contents: header row + this single row.
+        _retry(lambda: ws.update("A1", [headers, row]))
+
     # ---- runtime log ----
     def append_runtime_log(
         self,

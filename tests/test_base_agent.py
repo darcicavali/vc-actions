@@ -217,6 +217,35 @@ def test_recommendation_round_trip():
     assert r.to_dict() == d
 
 
+def test_dry_run_skips_sheet_writes_and_prints(sheets, fake_config, prompts_dir, fake_spreadsheet, capsys):
+    claude = StubClaudeClient(next_text=_good_response_json())
+    agent = StubAgent(claude, sheets, fake_config, prompts_dir=prompts_dir, dry_run=True)
+    memo = agent.run()
+    assert memo.agent == "AdsAgent"
+
+    # No rows written to either tab.
+    assert fake_spreadsheet.worksheet("Agent Memos").get_all_records() == []
+    assert fake_spreadsheet.worksheet("Runtime Log").get_all_records() == []
+
+    # Memo printed to stdout.
+    out = capsys.readouterr().out
+    assert "[DRY RUN] AdsAgent" in out
+    assert "Cold prospecting healthy" in out
+    assert "[DRY RUN] AdsAgent runtime:" in out
+
+
+def test_dry_run_defaults_from_config(sheets, fake_config, prompts_dir, fake_spreadsheet):
+    # Build a config with dry_run=True (frozen dataclass — replace).
+    from dataclasses import replace as dc_replace
+
+    cfg = dc_replace(fake_config, dry_run=True)
+    claude = StubClaudeClient(next_text=_good_response_json())
+    agent = StubAgent(claude, sheets, cfg, prompts_dir=prompts_dir)
+    assert agent.dry_run is True
+    agent.run()
+    assert fake_spreadsheet.worksheet("Agent Memos").get_all_records() == []
+
+
 def test_subclass_requires_name_and_role_file(sheets, fake_config, prompts_dir):
     class NoName(BaseAgent):
         role_prompt_file = "ads.md"
