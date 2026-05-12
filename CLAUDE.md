@@ -36,7 +36,7 @@ This file plus the latest entries in `BUILD_JOURNAL.md` (especially the `## Ops 
 - `VC_ACTIONS_MEMORY_AND_JOURNAL_v5.md` — memory layers + journaling
 - `BUILD_JOURNAL.md` — what happened, session by session
 
-**Code is built and tested.** 57 tests pass. The framework is *deployed* via GitHub Actions (`.github/workflows/weekly_run.yml`) — manual trigger + Monday 13:00 UTC cron.
+**Code is built and tested.** 62 tests pass. The framework is *deployed* via GitHub Actions (`.github/workflows/weekly_run.yml`) — manual trigger + Monday 13:00 UTC cron.
 
 ---
 
@@ -46,10 +46,14 @@ This file plus the latest entries in `BUILD_JOURNAL.md` (especially the `## Ops 
 
 ### Deployment status
 
-- GitHub Actions workflow exists: `.github/workflows/weekly_run.yml`
-- Required secrets in GitHub: **ANTHROPIC_API_KEY, GOOGLE_SHEET_ID, GOOGLE_SERVICE_ACCOUNT_JSON** — added (per Darci, completed in a prior session)
-- Google Sheet shared with the service account email — done (per Darci, prior session)
-- **Next action:** trigger first dry-run from the GitHub Actions web UI. Not yet done.
+- GitHub Actions workflow exists: `.github/workflows/weekly_run.yml`.
+- Required secrets in GitHub: **ANTHROPIC_API_KEY, GOOGLE_SHEET_ID, GOOGLE_SERVICE_ACCOUNT_JSON** — added in a prior session.
+- Google Sheet shared with the service account email — done in a prior session.
+- **First dry-run was attempted and surfaced 3 real failures, all now fixed in main:**
+  1. Per-tab row dump pushed prompts over Claude's 200k token limit. Fixed: `BaseAgent` caps each tab at 50 most-recent rows (commit `535221c`).
+  2. Specialists hit Anthropic's 30k input-tokens/minute rate limit. Fixed: runner sleeps `VC_ACTIONS_INTER_AGENT_DELAY_SECONDS` (default 60s) between specialists (commit `535221c`).
+  3. Windows `cp1252` locale broke prompt-file reads (em dashes). Fixed: UTF-8 pinned on every prompt/journal read (commits `4ea6c46`, `005ae2e`).
+- **Next action:** re-trigger dry-run from the GitHub Actions web UI now that the three fixes are merged. Confirm it goes green end-to-end.
 
 ### Open requirement — two-way communication (NEW, not in v4/v5 spec)
 

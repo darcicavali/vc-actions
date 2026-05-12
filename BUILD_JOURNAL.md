@@ -321,11 +321,21 @@ the last one left off without making Darci re-explain context.
   both? Needs a short scoping conversation before any build.
 
 ### Next step
-1. Darci triggers the first dry-run from
+1. Darci re-triggers the dry-run from
    https://github.com/darcicavali/vc-actions/actions/workflows/weekly_run.yml
-   ("Run workflow" → dry_run = true → green button).
+   ("Run workflow" → dry_run = true → green button). The three known
+   failures from the first attempt (200k token overflow, rate limits,
+   Windows UTF-8) are fixed in main; this run is confirming the fixes.
 2. Paste any errors back here. I fix.
 3. Once dry-run is green, scope two-way comms (Telegram + desktop chat).
+
+### Correction to current-state snapshot (added after reviewing git history)
+The initial CLAUDE.md written this session implied the first dry-run had
+not been attempted. Git history shows otherwise: prior sessions did run
+it, hit 3 distinct failures, and fixed all of them (commits 535221c,
+4ea6c46, 005ae2e). Test count is 62, not 57. CLAUDE.md has been updated
+to reflect this. Lesson: always reconcile self-reported state with
+`git log` before writing the snapshot.
 
 ### Learnings for future sessions
 - Always read `CLAUDE.md` first. It is not optional.
