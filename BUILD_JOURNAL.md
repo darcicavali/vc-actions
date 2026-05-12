@@ -337,6 +337,92 @@ it, hit 3 distinct failures, and fixed all of them (commits 535221c,
 to reflect this. Lesson: always reconcile self-reported state with
 `git log` before writing the snapshot.
 
+---
+
+## Ops — 2026-05-12 — Discovered three unmerged PRs of real work
+
+### Session goal
+Recover full session state after Darci pasted the transcript of the
+session that stalled. Memory files were missing a lot.
+
+### What was attempted
+- Read Darci's pasted transcript carefully. It describes three large
+  pieces of work (cost cuts, baseline layer, chat bot) that the previous
+  session built and "shipped" as PR 3 / PR 4 / PR 5 — but I had not seen
+  them in `main` so I had treated the project as just "deploy what's
+  there, then build chat later."
+- Ran `git branch -a` and `git log --all`. Found three commits sitting on
+  `origin/claude/build-multiagent-system-Q4Z6T` that were pushed but never
+  merged into `main`:
+  - `55fbc73` — Cost cuts (PR 3): prompt caching, Haiku routing for
+    Content + SEO, 50→12 rows/tab. ~$0.80/run → ~$0.10–0.15/run.
+  - `bb61af9` — Baseline layer (PR 4): `BASELINE: <Agent>` tabs (one per
+    agent) carry curated long-run wisdom; `baseline_prompts/` directory +
+    `BASELINES.md` operator guide explain the Claude Max workflow for
+    refreshing them at zero API cost. Default rows/tab drops 12→4.
+  - `87c8270` — Chat bot (PR 5): full `chat/` package — Streamlit web UI
+    + Telegram long-polling bot over one shared `brain.py`, SQLite
+    conversation memory, `Bot Actions` audit tab, `Bot Notes`
+    forward-channel tab, guardrail framework, Dockerfile + fly.toml
+    deploy stubs.
+
+### What worked
+- Reading the transcript surfaced a new permanent preference: action
+  items needed from Darci should always be at the BOTTOM of any chat
+  reply, clearly labeled. Captured in CLAUDE.md.
+- `git log --all` proved decisive once again — the work isn't lost,
+  it's just unmerged.
+
+### What failed / had to retry
+- Earlier this session I confidently said "you're one button-click away
+  from the next milestone" without realizing three entire PRs of work
+  were stranded on an unmerged branch. That was wrong. Lesson: always
+  check ALL branches with `git log --all`, not just the current one.
+- I told Darci I "couldn't read the public session link." That was
+  technically correct (claude.ai needs auth) but didn't matter once she
+  pasted the relevant content. Next time: ask for paste sooner rather
+  than spending tool calls on retries.
+
+### Decisions made
+- Treat `claude/build-multiagent-system-Q4Z6T` as the canonical recent
+  branch. It contains the three unmerged commits + everything that was
+  later cherry-picked or backported to main.
+- The right path forward is ONE PR that lands all three commits onto
+  `main` in a single review. Splitting into three separate PRs would
+  cost Darci three rounds of clicking through GitHub for no benefit;
+  the commits are already cleanly separated in git history.
+- I will NOT open that PR without explicit authorization from Darci, per
+  the standing instruction.
+
+### Open questions
+- Should the unmerged branch land into `main` as a single squash, a
+  three-commit merge, or a fast-forward? Darci picks; I default to
+  three-commit merge so the cost/baseline/chat boundary stays visible
+  in `main`'s history.
+- Should the chat bot's audit log live in the same Google Sheet as the
+  weekly runner data, or a separate sheet? Current code points it at
+  the same sheet (`Bot Actions` tab). Likely correct, will confirm.
+- Telegram bot needs two env vars on Darci's laptop: `TELEGRAM_BOT_TOKEN`
+  and `TELEGRAM_ALLOWED_USER_ID`. She has to create the bot via
+  `@BotFather` on Telegram and get her user ID via `@userinfobot`.
+  Phone-only, no terminal.
+
+### Next step
+1. Ask Darci to authorize opening a PR for the unmerged branch.
+2. After merge, re-trigger dry-run from Actions web UI.
+3. After green dry-run, walk Darci through Streamlit-first, Telegram-second.
+
+### Learnings for future sessions
+- **Always run `git log --all` and `git branch -a` at session start**, in
+  addition to reading CLAUDE.md + the journal. Unmerged branches can
+  contain critical work.
+- **Action items go at the bottom of every chat reply.** Non-negotiable.
+- The previous session's transcript explicitly stated PRs 3/4/5 "landed
+  sequentially on `claude/build-multiagent-system-Q4Z6T`" — that wording
+  meant "landed on the branch," not "landed on main." Future sessions
+  should not assume "PR landed" implies "merged to main" without
+  checking.
+
 ### Learnings for future sessions
 - Always read `CLAUDE.md` first. It is not optional.
 - Darci's stated preference: "no terminal, short chats, clear instructions,

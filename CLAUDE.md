@@ -17,6 +17,7 @@ This file plus the latest entries in `BUILD_JOURNAL.md` (especially the `## Ops 
 - **Very clear instructions.** Numbered steps. One action per step. No jargon without a plain-language gloss.
 - **Ask before risky/irreversible steps** (push, merge, delete, send email, share data externally).
 - **When something fails, she pastes the error and I fix it.** She does not debug.
+- **Always put action items needed from Darci at the BOTTOM of the chat reply**, clearly labeled (e.g. "## What I need from you" or "## Action needed"). This is so she can scroll straight to what she has to do without re-reading the whole reply. Stated by Darci in the prior session, must be honored permanently.
 
 ### What Darci is NOT going to do
 
@@ -53,7 +54,21 @@ This file plus the latest entries in `BUILD_JOURNAL.md` (especially the `## Ops 
   1. Per-tab row dump pushed prompts over Claude's 200k token limit. Fixed: `BaseAgent` caps each tab at 50 most-recent rows (commit `535221c`).
   2. Specialists hit Anthropic's 30k input-tokens/minute rate limit. Fixed: runner sleeps `VC_ACTIONS_INTER_AGENT_DELAY_SECONDS` (default 60s) between specialists (commit `535221c`).
   3. Windows `cp1252` locale broke prompt-file reads (em dashes). Fixed: UTF-8 pinned on every prompt/journal read (commits `4ea6c46`, `005ae2e`).
-- **Next action:** re-trigger dry-run from the GitHub Actions web UI now that the three fixes are merged. Confirm it goes green end-to-end.
+
+### Unmerged work sitting on `origin/claude/build-multiagent-system-Q4Z6T`
+
+Three commits pushed but **never merged into `main`**. Discovered 2026-05-12 by reading the prior session transcript Darci shared. These are real, tested code (104 tests pass on that branch) that we need to land:
+
+1. **`55fbc73` — Cost cuts (PR 3):** prompt caching, Haiku 4.5 routing for Content + SEO, default 50→12 rows/tab. Drops per-run cost ~85% (~$0.80 → ~$0.10–0.15).
+2. **`bb61af9` — Baseline layer (PR 4):** new `BASELINE: <Agent>` tabs (one per agent) carry curated long-run wisdom. `baseline_prompts/` directory holds paste-into-Claude.ai prompt packs; `BASELINES.md` is the operator guide for refreshing them via Darci's Claude Max subscription (no API cost). Default rows/tab drops further (12→4) because the baseline replaces raw history.
+3. **`87c8270` — Chat bot (PR 5):** `chat/` package — Streamlit web UI (`chat/web_app.py`) + Telegram long-polling bot (`chat/telegram_app.py`) over one shared `brain.py`. SQLite conversation memory. `Bot Actions` audit tab + `Bot Notes` forward-channel tab. Guardrail framework wired for future destructive tools (none today; only append-only writes ship). Dockerfile + `fly.toml` stubs for Fly.io deploy when Darci's ready.
+
+### Next actions, in order
+
+1. **Land the unmerged branch into `main`** — one PR with all three commits is simplest. Darci needs to authorize me to open it.
+2. **Re-trigger the dry-run** from GitHub Actions web UI once #1 is merged. Confirms the rate-limit / token-cap / UTF-8 fixes hold AND that the cost optimizations work in production.
+3. **Stand up the chat bot locally** — Streamlit first (laptop), then Telegram (phone). Requires Darci to create a Telegram bot via `@BotFather` and grab her user ID via `@userinfobot` (web/app, no terminal).
+4. **Scope the baseline-prompt workflow** — Darci pastes each agent's `baseline_prompts/*.md` into a Claude.ai conversation, attaches relevant CSVs, gets back a populated baseline she pastes into the `BASELINE: <Agent>` tab. Repeats monthly.
 
 ### Open requirement — two-way communication (NEW, not in v4/v5 spec)
 
