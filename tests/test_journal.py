@@ -17,7 +17,7 @@ def test_append_entry_creates_file_if_missing(tmp_path):
         entry_date=date(2026, 5, 11),
     )
     append_entry(entry, path=p)
-    text = p.read_text()
+    text = p.read_text(encoding="utf-8")
     assert "## 2026-05-11 — Session 1: Initial scaffold" in text
     assert "scaffold repo" in text
     assert "pin SDK version" in text
@@ -25,7 +25,7 @@ def test_append_entry_creates_file_if_missing(tmp_path):
 
 def test_append_entry_preserves_prior_content(tmp_path):
     p = tmp_path / "BUILD_JOURNAL.md"
-    p.write_text("# Build Journal\n\nExisting content.\n")
+    p.write_text("# Build Journal\n\nExisting content.\n", encoding="utf-8")
     entry = JournalEntry(
         session_number=2,
         title="Second",
@@ -33,7 +33,7 @@ def test_append_entry_preserves_prior_content(tmp_path):
         entry_date=date(2026, 5, 12),
     )
     append_entry(entry, path=p)
-    text = p.read_text()
+    text = p.read_text(encoding="utf-8")
     assert "Existing content." in text
     assert "Session 2: Second" in text
     # The old content should appear before the new entry.
