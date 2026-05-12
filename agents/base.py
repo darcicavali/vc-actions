@@ -200,7 +200,7 @@ class BaseAgent:
 
     # ---- prompt assembly ----
     def _load_text(self, filename: str) -> str:
-        return (self.prompts_dir / filename).read_text()
+        return (self.prompts_dir / filename).read_text(encoding="utf-8")
 
     def get_business_context(self) -> str:
         return self._load_text("base_context.md")
