@@ -47,15 +47,15 @@ class JournalEntry:
 
 def append_entry(entry: JournalEntry, path: Path | None = None) -> Path:
     p = path or JOURNAL_PATH_DEFAULT
-    text = p.read_text() if p.exists() else "# Build Journal\n\n"
+    text = p.read_text(encoding="utf-8") if p.exists() else "# Build Journal\n\n"
     if not text.endswith("\n"):
         text += "\n"
     if not text.endswith("\n\n"):
         text += "\n"
-    p.write_text(text + entry.render())
+    p.write_text(text + entry.render(), encoding="utf-8")
     return p
 
 
 def read_journal(path: Path | None = None) -> str:
     p = path or JOURNAL_PATH_DEFAULT
-    return p.read_text() if p.exists() else ""
+    return p.read_text(encoding="utf-8") if p.exists() else ""
