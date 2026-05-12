@@ -84,6 +84,30 @@ TAB_SCHEMAS: dict[str, list[str]] = {
         "key_insight",
         "errors",
     ],
+    # Bot audit trail (PR 5). Every bot-initiated write to the spreadsheet
+    # appends a row here. If a write goes wrong, this is the audit log
+    # Darci consults. Sheets' built-in revision history covers rollback.
+    "Bot Actions": [
+        "timestamp",
+        "transport",
+        "conversation_id",
+        "tool_name",
+        "tool_args_json",
+        "result_summary",
+        "requires_confirmation",
+        "confirmed",
+    ],
+    # Notes the bot wants the next weekly run to see. The coordinator
+    # (GoalsAgent) reads this tab and folds anything fresh into its
+    # context. Append-only; weekly run marks rows as "consumed" by
+    # writing to the consumed_at column.
+    "Bot Notes": [
+        "added_at",
+        "added_by",  # "bot" or "darci"
+        "agent_target",  # specific agent name or "ALL"
+        "note",
+        "consumed_at",
+    ],
 }
 
 

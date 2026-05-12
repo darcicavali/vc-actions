@@ -1,0 +1,34 @@
+# Fly.io deployment config for the Telegram bot.
+# Use when you're ready to make the bot always-on (free tier covers it).
+#
+# First-time setup:
+#   fly auth login
+#   fly launch --no-deploy --copy-config       # claims the app name
+#   fly secrets set ANTHROPIC_API_KEY=...
+#   fly secrets set GOOGLE_SHEET_ID=...
+#   fly secrets set GOOGLE_SERVICE_ACCOUNT_JSON='{...}'
+#   fly secrets set TELEGRAM_BOT_TOKEN=...
+#   fly secrets set TELEGRAM_ALLOWED_USER_ID=...
+#   fly deploy
+#
+# Subsequent deploys:
+#   fly deploy
+
+# Pick a unique app name when you `fly launch`; this is a placeholder.
+app = "vc-actions-bot"
+primary_region = "ord"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[processes]
+  bot = "python -m chat.telegram_app"
+
+# No HTTP service — long-polling Telegram bot doesn't expose ports.
+# Keep one machine always running (the bot must be alive to receive messages).
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+
+[deploy]
+  strategy = "immediate"
