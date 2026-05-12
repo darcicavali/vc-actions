@@ -259,3 +259,78 @@ asked for.
   itself in week 2 — no special-case code in the memory layer.
 - For workflow YAML, prefer `vars` for non-secret config (model name,
   recipient email) and `secrets` only for credentials. Easier rotation.
+
+---
+
+## Ops — 2026-05-12 — Session memory system + status reset
+
+### Session goal
+Recover after a prior session stalled mid-deploy. Establish a durable
+cross-session memory system so future sessions of Claude can pick up where
+the last one left off without making Darci re-explain context.
+
+### What was attempted
+- Read `BUILD_JOURNAL.md` through Session 2 to ground the current session.
+- Confirmed the GitHub Actions workflow is in place and uses GitHub Secrets
+  (not the local `.env`), so the prior session's "check your local `.env`"
+  terminal path was unnecessary friction for Darci's actual workflow.
+- Created `CLAUDE.md` at repo root. Contains: who Darci is, communication
+  rules (no terminal, short chats, clear numbered steps), current deployment
+  state, open requirements, and the start/end-of-session protocol so any
+  future Claude session reads it first and behaves consistently.
+- Established the convention: ops entries go at the bottom of this file
+  under `## Ops — YYYY-MM-DD — <title>`, append-only, same shape as build
+  entries.
+
+### What worked
+- The repo's existing `BUILD_JOURNAL.md` discipline made it trivial to
+  layer an ops-journal convention on top — no new file, no new format.
+- Catching that GitHub Actions already does everything (cron + manual
+  trigger + secrets) means Darci does not need a local Python install at
+  all. Eliminates an entire class of friction the prior session was
+  fighting against.
+
+### What failed / had to retry
+- Prior session derailed into PowerShell `.env` diagnostics that left
+  Darci's terminal stuck in a `>>` continuation loop. Root cause: pasted
+  multi-line snippet with unclosed quotes/braces. Lesson: never hand Darci
+  a multi-line shell snippet. If terminal is unavoidable, give a single
+  one-liner. Better: don't suggest terminal at all.
+
+### Decisions made
+- **No terminal commands** for Darci unless strictly unavoidable. Codified
+  in `CLAUDE.md` as a permanent rule.
+- **Short chat answers, detailed files.** Same.
+- **GitHub Actions web UI is the production interface.** Local Python is
+  developer-only and Darci is not the developer.
+- **CLAUDE.md is the snapshot, journal is the history.** Update CLAUDE.md's
+  "Current state" section every session (overwrite). Append to journal
+  every session (never overwrite).
+- **Two-way communication (Telegram / desktop chat) is now a formal open
+  requirement.** It is not in v4 or v5 spec. Treat as the next thing to
+  scope after the first successful dry-run.
+
+### Open questions
+- Are the 3 required GitHub secrets actually saved correctly? Darci says
+  yes from a prior session; will be confirmed on first dry-run.
+- Was the Google Sheet shared as Viewer or Editor? The workflow writes,
+  so it needs Editor. README's earlier mention of Viewer is wrong for
+  this use case. To verify on first dry-run.
+- Two-way comms: Telegram bot vs. a small web chat UI vs. both? What's
+  the actual user need — quick mobile pings, deeper desktop sessions, or
+  both? Needs a short scoping conversation before any build.
+
+### Next step
+1. Darci triggers the first dry-run from
+   https://github.com/darcicavali/vc-actions/actions/workflows/weekly_run.yml
+   ("Run workflow" → dry_run = true → green button).
+2. Paste any errors back here. I fix.
+3. Once dry-run is green, scope two-way comms (Telegram + desktop chat).
+
+### Learnings for future sessions
+- Always read `CLAUDE.md` first. It is not optional.
+- Darci's stated preference: "no terminal, short chats, clear instructions,
+  I read slow and don't have much time." Respect this absolutely.
+- If a session ends mid-task, the *last commit* on the working branch is
+  the recovery point. Pick up there. Do not restart.
+
