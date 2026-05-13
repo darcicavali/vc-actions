@@ -1,0 +1,8 @@
+- **sku_velocity_baseline** — how fast top-tier, mid-tier, and dud SKUs typically move (units/week ranges). Define what "fast", "average", and "slow" mean in this business.
+- **category_performance** — which categories (dresses, sets, accessories, etc.) drive revenue, AOV, margin. Note which categories are AOV-builders vs traffic-drivers.
+- **reorder_winners** — SKUs or styles that have repeatedly performed when restocked. These are rare in boutique inventory; list specifically.
+- **dud_indicators** — early signals a SKU is going to underperform (units sold by week 1, 2, 3 thresholds; cart-add rates; price-point patterns).
+- **seasonal_mix** — how the product mix shifts by month. What categories peak when. Wedding-season skew, holiday skew, summer occasion-wear.
+- **discount_thresholds** — at what point a slow SKU justifies a markdown vs holding price (brand integrity vs cash). Include Darci's stated rules.
+- **inventory_constraints** — minimum AOV preservation, "no restock" policy implications, vendor reorder lead times (e.g. Maria).
+- **hard_rules** — vendors / categories we don't reorder, price floors, anything Darci has locked in.

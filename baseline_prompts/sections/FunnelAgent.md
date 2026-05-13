@@ -1,0 +1,8 @@
+- **funnel_rates_baseline** — normal session → ATC → IC → purchase rates, and AOV. Provide ranges (low/median/high) for the last 50 weeks.
+- **channel_funnel_differences** — how the funnel shape differs by acquisition channel (paid, organic, direct, email). Where each channel typically leaks.
+- **device_split** — mobile vs desktop session share, and conversion rate differences. Where mobile drops off vs where desktop holds.
+- **friction_points** — known sticky spots in the checkout flow (shipping calc, payment options, account creation). What past data suggests are real leaks vs noise.
+- **traffic_quality_signals** — what session metrics distinguish high-intent visits from low-intent (pages/session, time-on-page, repeat-vs-new visitor mix).
+- **abandonment_patterns** — typical cart-abandonment rate, recovery rate from existing flows.
+- **performance_constants** — Shopify theme, page load patterns, third-party scripts that are part of the baseline (and shouldn't be confused with new issues).
+- **hard_rules** — checkout changes Darci doesn't want to make (e.g. don't disable guest checkout), tracking constraints, etc.

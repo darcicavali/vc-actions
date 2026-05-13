@@ -1,0 +1,8 @@
+- **organic_traffic_baseline** — typical organic sessions per week, year-over-year shape, traffic-by-page distribution.
+- **top_landing_pages** — pages that consistently drive organic traffic + conversions. Include URLs and approximate share of organic revenue.
+- **ranking_keywords** — known winners (terms we rank for and convert on). Include "where do we rank" if visible.
+- **gbp_baseline** — typical Google Business Profile metrics (calls, direction requests, profile views, post engagement). What "active and healthy" looks like.
+- **local_seo_context** — Geneva IL local search dynamics, what local intent looks like vs broader Brazilian-fashion searches.
+- **content_gaps** — known gaps where competing boutiques rank and we don't (high-level themes, not specific keywords unless very clear).
+- **product_meta_patterns** — what shape of product title / description tends to win impressions vs lose them, based on Search Console data.
+- **hard_rules** — practices we won't do (paid backlinks, generic SEO copy that dilutes brand voice, etc.).

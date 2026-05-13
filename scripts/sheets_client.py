@@ -84,7 +84,57 @@ TAB_SCHEMAS: dict[str, list[str]] = {
         "key_insight",
         "errors",
     ],
+    # Bot audit trail (PR 5). Every bot-initiated write to the spreadsheet
+    # appends a row here. If a write goes wrong, this is the audit log
+    # Darci consults. Sheets' built-in revision history covers rollback.
+    "Bot Actions": [
+        "timestamp",
+        "transport",
+        "conversation_id",
+        "tool_name",
+        "tool_args_json",
+        "result_summary",
+        "requires_confirmation",
+        "confirmed",
+    ],
+    # Notes the bot wants the next weekly run to see. The coordinator
+    # (GoalsAgent) reads this tab and folds anything fresh into its
+    # context. Append-only; weekly run marks rows as "consumed" by
+    # writing to the consumed_at column.
+    "Bot Notes": [
+        "added_at",
+        "added_by",  # "bot" or "darci"
+        "agent_target",  # specific agent name or "ALL"
+        "note",
+        "consumed_at",
+    ],
 }
+
+
+# Names of the 7 specialist agents that get a curated "baseline" tab.
+# The baseline holds long-run wisdom (what's normal, seasonal patterns,
+# hard rules) so the weekly run doesn't have to re-derive it from 50
+# weeks of raw data every Monday. Refreshed monthly via Claude.ai (see
+# BASELINES.md), not by the API runner.
+BASELINE_AGENTS: list[str] = [
+    "AdsAgent",
+    "CustomerAgent",
+    "ProductAgent",
+    "ContentAgent",
+    "FunnelAgent",
+    "FinancialAgent",
+    "SEOAgent",
+    # The coordinator also gets a baseline tab — cross-agent themes,
+    # strategic constraints, channel-mix observations that span specialists.
+    "GoalsAgent",
+]
+
+BASELINE_HEADERS = ["section", "content", "last_updated", "confidence"]
+
+
+def baseline_tab_name(agent_name: str) -> str:
+    # "BASELINE: " prefix clusters these together in the Sheets tab list.
+    return f"BASELINE: {agent_name}"
 
 
 MAX_RAW_RESPONSE_CHARS = 8000
@@ -217,6 +267,8 @@ class SheetsClient:
     def ensure_all_tabs(self) -> None:
         for title, headers in TAB_SCHEMAS.items():
             self.ensure_tab(title, headers)
+        for agent_name in BASELINE_AGENTS:
+            self.ensure_tab(baseline_tab_name(agent_name), BASELINE_HEADERS)
 
     def read_tab(self, title: str) -> list[dict]:
         ws = self.get_worksheet(title)
@@ -225,6 +277,33 @@ class SheetsClient:
     def append_row(self, title: str, row: list) -> None:
         ws = self.get_worksheet(title)
         _retry(lambda: ws.append_row(row, value_input_option="USER_ENTERED"))
+
+    # ---- baseline helpers ----
+    def read_baseline_for_agent(self, agent_name: str) -> list[dict]:
+        """Return baseline sections in tab order. Each section is a dict with
+        keys: section, content, last_updated, confidence. Returns [] if the
+        tab is missing or empty — agents handle empty baselines gracefully.
+        """
+        tab = baseline_tab_name(agent_name)
+        try:
+            rows = self.read_tab(tab)
+        except gspread.exceptions.WorksheetNotFound:
+            return []
+        out: list[dict] = []
+        for row in rows:
+            section = str(row.get("section", "")).strip()
+            content = str(row.get("content", "")).strip()
+            if not section or not content:
+                continue
+            out.append(
+                {
+                    "section": section,
+                    "content": content,
+                    "last_updated": str(row.get("last_updated", "")).strip(),
+                    "confidence": str(row.get("confidence", "")).strip(),
+                }
+            )
+        return out
 
     # ---- memo helpers ----
     def append_memo(self, memo_row: MemoRow) -> None:

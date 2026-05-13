@@ -1,0 +1,8 @@
+- **segment_baselines** — typical sizes and dynamics of VIP, At Risk, and each recency bucket (0-30, 31-60, 61-90, 91-130, 131-150, 150+). Include normal month-over-month shift ranges.
+- **retention_curves** — 3-month, 6-month, and 12-month new-customer retention rates with normal ranges. Note any segment-specific patterns (e.g. summer-acquired vs winter-acquired).
+- **repurchase_intervals** — typical time between 1st and 2nd purchase, 2nd and 3rd, etc. Flag that 90-120 day intervals are normal for premium fashion, not churn.
+- **ltv_baseline** — median customer LTV, top-decile LTV, distribution shape (e.g. 80/20 rule patterns).
+- **win_back_flow_performance** — which existing Omnisend flows (30/45/60/90/120-150/365) reliably produce revenue vs. which are revenue-negative. **This is critical** — late-stage flows may be losing money.
+- **audience_profile** — typical customer (age, location, recency, frequency). Useful for the AdsAgent and ContentAgent to triangulate against.
+- **dark_revenue_estimates** — best guess at WhatsApp/IG-DM revenue that's invisible in dashboard data (rough %, with caveats).
+- **hard_rules** — segments we don't target with promotions, customers we never include in win-back, anything Darci has locked in.

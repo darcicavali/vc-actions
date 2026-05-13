@@ -37,3 +37,9 @@ credentials.json
 *.log
 out/
 tmp/
+
+# Chat bot local state — SQLite conversation history lives here.
+chat/data/*.db
+chat/data/*.db-journal
+chat/data/*.db-wal
+chat/data/*.db-shm

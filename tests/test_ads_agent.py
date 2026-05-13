@@ -33,13 +33,24 @@ class StubClaudeClient:
     model: str = "claude-sonnet-4-5-20250929"
     last_prompt: str | None = None
 
-    def complete(self, prompt: str) -> ClaudeResponse:
-        self.last_prompt = prompt
+    def complete(
+        self,
+        user_prompt: str,
+        *,
+        system: list[dict] | str | None = None,
+        model: str | None = None,
+    ) -> ClaudeResponse:
+        sys_text = ""
+        if isinstance(system, list):
+            sys_text = "\n".join(b.get("text", "") for b in system)
+        elif isinstance(system, str):
+            sys_text = system
+        self.last_prompt = f"{sys_text}\n{user_prompt}" if sys_text else user_prompt
         return ClaudeResponse(
             text=self.next_text,
             input_tokens=12_000,
             output_tokens=900,
-            model=self.model,
+            model=model or self.model,
         )
 
 

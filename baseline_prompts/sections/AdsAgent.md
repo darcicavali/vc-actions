@@ -1,0 +1,7 @@
+- **normal_metrics_range** — typical ranges (low / median / high) for CPM, CTR, CPC, ATC%, IC%, purchase%, frequency, and ROAS, broken out by campaign type (Prospect ASC, RT-non-customer, RT-customer). Include the *boutique-scale* context: $1-5k/month spend, not enterprise scale.
+- **audience_characteristics** — what audiences have performed, demographic skews (age/gender if visible), placement performance (Reels vs Feed vs Stories), time-of-day or day-of-week patterns.
+- **seasonal_patterns** — known peaks (e.g. May-July wedding season), troughs, holiday spikes, post-holiday softness. Cite specific weeks/months where visible in the data.
+- **creative_fatigue_patterns** — typical creative refresh cadence; what frequency level reliably triggers CTR decay; how long a refreshed creative typically takes to "set in".
+- **attribution_caveats** — WhatsApp/IG-DM revenue that Meta attributes to RT-customer; draft orders showing in analytics; live shopping attribution; anything else that distorts surface metrics.
+- **hard_rules** — channels we don't recommend (TikTok ads, Google ads), spend patterns we avoid (no doubling, no 20%+ blasts), tactics we won't deploy (deep discounts). Note where each rule comes from.
+- **known_failure_modes** — past situations where the standard playbook didn't work, with brief notes on what we learned.
