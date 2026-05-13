@@ -31,21 +31,33 @@ class StubClaudeClient:
     fail_for_agents: set[str] = None
     calls: int = 0
 
-    def complete(self, prompt: str) -> ClaudeResponse:
+    def complete(
+        self,
+        user_prompt: str,
+        *,
+        system: list[dict] | str | None = None,
+        model: str | None = None,
+    ) -> ClaudeResponse:
         self.calls += 1
+        sys_text = ""
+        if isinstance(system, list):
+            sys_text = "\n".join(b.get("text", "") for b in system)
+        elif isinstance(system, str):
+            sys_text = system
+        combined = f"{sys_text}\n{user_prompt}"
         # Cheap signal: only the coordinator prompt mentions sequenced_actions.
-        is_coord = '"sequenced_actions"' in prompt and '"one_thing_this_week"' in prompt
+        is_coord = '"sequenced_actions"' in combined and '"one_thing_this_week"' in combined
         # Optional fail-injection by agent role name.
         if self.fail_for_agents:
             for needle in self.fail_for_agents:
-                if needle in prompt and not is_coord:
+                if needle in combined and not is_coord:
                     raise RuntimeError(f"injected failure: {needle}")
         text = self.coordinator_text if is_coord else self.specialist_text
         return ClaudeResponse(
             text=text,
             input_tokens=1000,
             output_tokens=200,
-            model=self.model,
+            model=model or self.model,
         )
 
 

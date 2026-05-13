@@ -1,0 +1,8 @@
+- **revenue_seasonality** — monthly revenue pattern over the year. Which months are peaks (wedding season, holiday), which are troughs. Include normal ranges.
+- **margin_baseline** — typical gross-margin range, contribution-margin after ad spend, what "healthy" looks like at this AOV.
+- **cogs_structure** — typical COGS as a % of revenue, broken out by category if visible. What drives the variance.
+- **cash_flow_patterns** — typical cash flow shape (e.g. cash-light in March-April, cash-strong post-summer). Boutique capital constraints embedded here.
+- **pace_calculations** — how to compute weeks-to-target, gap-to-close, monthly-needed-pace. The exact arithmetic the agent should use.
+- **ad_spend_efficiency_baseline** — typical $1 ad spend → $X revenue ratio across paid channels combined (blended ROAS), discounted for WhatsApp inflation.
+- **break_even_thresholds** — minimum weekly revenue to break even given fixed costs.
+- **hard_rules** — spending caps, no-debt rule, vendor payment cadence constraints, capital floor we maintain.

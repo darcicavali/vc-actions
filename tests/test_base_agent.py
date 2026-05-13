@@ -31,17 +31,35 @@ class StubClaudeClient:
     input_tokens: int = 100
     output_tokens: int = 50
     last_prompt: str | None = None
+    last_system: list[dict] | str | None = None
+    last_user_message: str | None = None
+    last_model: str | None = None
     raise_exc: Exception | None = None
 
-    def complete(self, prompt: str) -> ClaudeResponse:
-        self.last_prompt = prompt
+    def complete(
+        self,
+        user_prompt: str,
+        *,
+        system: list[dict] | str | None = None,
+        model: str | None = None,
+    ) -> ClaudeResponse:
+        self.last_user_message = user_prompt
+        self.last_system = system
+        self.last_model = model
+        # last_prompt = combined view so existing substring assertions keep working.
+        sys_text = ""
+        if isinstance(system, list):
+            sys_text = "\n".join(b.get("text", "") for b in system)
+        elif isinstance(system, str):
+            sys_text = system
+        self.last_prompt = f"{sys_text}\n{user_prompt}" if sys_text else user_prompt
         if self.raise_exc is not None:
             raise self.raise_exc
         return ClaudeResponse(
             text=self.next_text,
             input_tokens=self.input_tokens,
             output_tokens=self.output_tokens,
-            model=self.model,
+            model=model or self.model,
         )
 
 
@@ -276,7 +294,9 @@ def test_gather_data_caps_rows_per_tab(sheets, fake_config, prompts_dir):
 
 def test_gather_data_does_not_wrap_small_tabs(sheets, fake_config, prompts_dir):
     sheets.ensure_tab("SmallTab", ["week", "value"])
-    for i in range(10):
+    # 3 rows is below the default cap of 4, so the payload should pass
+    # through as a raw list (no _total_rows / _kept_last envelope).
+    for i in range(3):
         sheets.append_row("SmallTab", [f"2024-W{i:03d}", i])
 
     class SmallAgent(_TabAgent):
@@ -286,7 +306,112 @@ def test_gather_data_does_not_wrap_small_tabs(sheets, fake_config, prompts_dir):
     agent = SmallAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
     data = agent.gather_data()
     assert isinstance(data["SmallTab"], list)
-    assert len(data["SmallTab"]) == 10
+    assert len(data["SmallTab"]) == 3
+
+
+def test_build_prompt_emits_cacheable_system_blocks(sheets, fake_config, prompts_dir):
+    """The memory block must carry cache_control so the role+context+baseline
+    prefix is cached for the next agent in the run."""
+    claude = StubClaudeClient(next_text=_good_response_json())
+    agent = StubAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
+    agent.run()
+
+    sys_blocks = claude.last_system
+    assert isinstance(sys_blocks, list)
+    assert len(sys_blocks) == 4  # role + context + baseline + memory
+    # cache_control on the last (memory) block caches everything above it.
+    assert sys_blocks[-1].get("cache_control") == {"type": "ephemeral"}
+    # role / context / baseline blocks are stable across the weekly run.
+    assert sys_blocks[0]["text"]  # role
+    assert "BUSINESS CONTEXT" in sys_blocks[1]["text"]
+    assert "AGENT BASELINE" in sys_blocks[2]["text"]
+    # The volatile per-week data lives in the user message, not system.
+    assert "THIS WEEK'S DATA" in claude.last_user_message
+    assert "BUSINESS CONTEXT" not in claude.last_user_message
+
+
+def test_baseline_rows_appear_in_system_block(sheets, fake_config, prompts_dir):
+    """Curated baseline sections render as named blocks the agent can read."""
+    # Seed the BASELINE: AdsAgent tab. StubAgent.name == "AdsAgent".
+    sheets.append_row(
+        "BASELINE: AdsAgent",
+        [
+            "normal_metrics_range",
+            "Prospect ASC CPM typically $18-25; CTR 1.4-1.8%.",
+            "2026-04-15",
+            "high",
+        ],
+    )
+    sheets.append_row(
+        "BASELINE: AdsAgent",
+        [
+            "attribution_caveats",
+            "RT-customer ROAS is ~50% WhatsApp-inflated.",
+            "2026-04-15",
+            "high",
+        ],
+    )
+
+    claude = StubClaudeClient(next_text=_good_response_json())
+    agent = StubAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
+    agent.run()
+
+    baseline_block = claude.last_system[2]["text"]
+    assert "[normal_metrics_range]" in baseline_block
+    assert "Prospect ASC CPM" in baseline_block
+    assert "[attribution_caveats]" in baseline_block
+    assert "confidence=high" in baseline_block
+
+
+def test_empty_baseline_renders_placeholder(sheets, fake_config, prompts_dir):
+    """First-run case: no baseline rows yet. The block stays present in the
+    system prefix (so the cache key shape is stable) with a clear placeholder."""
+    claude = StubClaudeClient(next_text=_good_response_json())
+    agent = StubAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
+    agent.run()
+
+    baseline_block = claude.last_system[2]["text"]
+    assert "no baseline yet" in baseline_block
+
+
+def test_preferred_model_is_forwarded_to_client(sheets, fake_config, prompts_dir):
+    """ContentAgent / SEOAgent override preferred_model to route to Haiku."""
+
+    class HaikuAgent(StubAgent):
+        preferred_model = "claude-haiku-4-5"
+
+    claude = StubClaudeClient(next_text=_good_response_json())
+    agent = HaikuAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
+    agent.run()
+    assert claude.last_model == "claude-haiku-4-5"
+
+
+def test_preferred_model_defaults_to_none(sheets, fake_config, prompts_dir):
+    """Unspecified preferred_model passes None — the client falls back to
+    its default model (config.anthropic_model)."""
+    claude = StubClaudeClient(next_text=_good_response_json())
+    agent = StubAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
+    agent.run()
+    assert claude.last_model is None
+
+
+def test_default_max_rows_per_tab_is_4(sheets, fake_config, prompts_dir):
+    """4 weeks is enough for w/w trend detection; the BASELINE tab carries
+    the long-run wisdom that 12 weeks of raw data used to approximate."""
+
+    class DefaultCapAgent(_TabAgent):
+        data_tabs = ["WeeklyTab"]
+
+    sheets.ensure_tab("WeeklyTab", ["week", "value"])
+    for i in range(30):
+        sheets.append_row("WeeklyTab", [f"2024-W{i:03d}", i])
+
+    claude = StubClaudeClient(next_text=_good_response_json())
+    agent = DefaultCapAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
+    data = agent.gather_data()
+    payload = data["WeeklyTab"]
+    assert payload["_kept_last"] == 4
+    assert len(payload["rows"]) == 4
 
 
 def test_subclass_requires_name_and_role_file(sheets, fake_config, prompts_dir):

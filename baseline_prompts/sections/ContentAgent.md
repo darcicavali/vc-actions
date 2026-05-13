@@ -1,0 +1,8 @@
+- **post_type_performance** — which IG content types (Reels, Carousel, Single Image, Stories) typically drive reach, engagement, saves, profile visits. Include normal ranges per metric per type.
+- **audience_response_patterns** — what subject matter resonates (founder voice, product detail, lifestyle, behind-the-scenes, customer features). What typically falls flat.
+- **posting_cadence** — typical posting frequency (per week), gap tolerance, peak posting day/time based on historical engagement.
+- **top_content_themes** — themes that have repeatedly performed (e.g. "new arrival reveals", "founder picks", "occasion-wear styling").
+- **conversion_signal_patterns** — which content types correlate with actual store traffic or DM conversations vs which are vanity-engagement only.
+- **seasonal_content_fit** — what content shape fits which season (e.g. wedding-guest content May-July, gift-guide content Nov-Dec).
+- **format_no_gos** — formats that have flopped or feel off-brand. Memes, trend-chasing, generic templates.
+- **hard_rules** — anything Darci has locked in re: brand voice, photography style, or content types to avoid.

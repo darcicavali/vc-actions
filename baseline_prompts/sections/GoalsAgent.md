@@ -1,0 +1,8 @@
+- **cross_agent_themes** — recurring themes you've seen across specialist memos. E.g. "Ads + Product both keep flagging X", "Funnel + Customer disagree about Y". These are the strategic threads worth tracking.
+- **strategic_constraints** — hard business constraints (boutique scale, capital-limited, solo operator, brand integrity > growth). What rules out entire classes of recommendation.
+- **channel_mix** — how revenue typically splits across Shopify online, WhatsApp/DMs, POS, and ads-attributed-but-DM-closed. Include rough percentages and known invisibility (WhatsApp).
+- **conflict_resolution_patterns** — when specialists disagree (e.g. AdsAgent wants to scale, ProductAgent says we're out of restock-able SKUs), how you typically resolve. Document the priority ordering.
+- **pacing_norms** — what "behind pace" looks like in this business vs natural week-to-week variance. When to flag urgency vs let it ride.
+- **darci_preferences** — locked-in choices about what to flag vs not, how blunt to be in the email digest, what level of risk she's willing to take.
+- **one_thing_philosophy** — the heuristic for picking the single highest-leverage move each week. Past examples of what made the cut and why.
+- **hard_rules** — coordinator-level rules: never recommend X across the business, always defer to Y agent for Z domain, etc.
