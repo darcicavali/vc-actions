@@ -57,7 +57,9 @@ This file plus the latest entries in `BUILD_JOURNAL.md` (especially the `## Ops 
 
 ### Unmerged work sitting on `origin/claude/build-multiagent-system-Q4Z6T`
 
-Three commits pushed but **never merged into `main`**. Discovered 2026-05-12 by reading the prior session transcript Darci shared. These are real, tested code (104 tests pass on that branch) that we need to land:
+**STATUS: MERGED 2026-05-13 via PR #4** (`b831786`). All three feature commits are now on `main`.
+
+The three commits that landed:
 
 1. **`55fbc73` — Cost cuts (PR 3):** prompt caching, Haiku 4.5 routing for Content + SEO, default 50→12 rows/tab. Drops per-run cost ~85% (~$0.80 → ~$0.10–0.15).
 2. **`bb61af9` — Baseline layer (PR 4):** new `BASELINE: <Agent>` tabs (one per agent) carry curated long-run wisdom. `baseline_prompts/` directory holds paste-into-Claude.ai prompt packs; `BASELINES.md` is the operator guide for refreshing them via Darci's Claude Max subscription (no API cost). Default rows/tab drops further (12→4) because the baseline replaces raw history.
@@ -65,8 +67,8 @@ Three commits pushed but **never merged into `main`**. Discovered 2026-05-12 by 
 
 ### Next actions, in order
 
-1. **Land the unmerged branch into `main`** — one PR with all three commits is simplest. Darci needs to authorize me to open it.
-2. **Re-trigger the dry-run** from GitHub Actions web UI once #1 is merged. Confirms the rate-limit / token-cap / UTF-8 fixes hold AND that the cost optimizations work in production.
+1. ~~**Land the unmerged branch into `main`**~~ ✅ Done via PR #4 (2026-05-13).
+2. **Re-trigger the dry-run** from GitHub Actions web UI now that PR #4 is merged. Confirms the rate-limit / token-cap / UTF-8 fixes hold AND that the cost optimizations work in production. New tabs (`BASELINE: <Agent>`, `Bot Actions`, `Bot Notes`) will auto-create on first run — Darci should see them appear in the sheet.
 3. **Stand up the chat bot locally** — Streamlit first (laptop), then Telegram (phone). Requires Darci to create a Telegram bot via `@BotFather` and grab her user ID via `@userinfobot` (web/app, no terminal).
 4. **Scope the baseline-prompt workflow** — Darci pastes each agent's `baseline_prompts/*.md` into a Claude.ai conversation, attaches relevant CSVs, gets back a populated baseline she pastes into the `BASELINE: <Agent>` tab. Repeats monthly.
 
