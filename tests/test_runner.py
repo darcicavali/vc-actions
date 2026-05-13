@@ -242,3 +242,19 @@ def test_dry_run_writes_nothing(monkeypatch, sheets, fake_spreadsheet, base_conf
     out = capsys.readouterr().out
     assert "[DRY RUN] AdsAgent" in out
     assert "[DRY RUN] GoalsAgent" in out
+
+
+def test_bootstrap_only_creates_tabs_without_calling_claude(
+    monkeypatch, sheets, fake_spreadsheet, base_config, prompts_dir, capsys
+):
+    claude = _patch_runner(monkeypatch, sheets, base_config, prompts_dir)
+    code = run_weekly(bootstrap_only=True)
+    assert code == 0
+    # No agent ran — no Claude calls at all.
+    assert claude.calls == 0
+    # Tabs from the schema exist and are header-only.
+    assert fake_spreadsheet.worksheet("Agent Memos").get_all_records() == []
+    assert fake_spreadsheet.worksheet("Action Plan").get_all_records() == []
+    out = capsys.readouterr().out
+    assert "bootstrap_only=true" in out
+    assert "[DRY RUN]" not in out

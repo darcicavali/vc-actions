@@ -133,22 +133,30 @@ def _send_digest_email(config: Config, coordinator: GoalsAgent) -> None:
     print(f"[digest] omnisend status={result.status_code}")
 
 
-def run_weekly(*, dry_run: bool | None = None) -> int:
+def run_weekly(*, dry_run: bool | None = None, bootstrap_only: bool = False) -> int:
     config = get_config()
     effective_dry_run = config.dry_run if dry_run is None else dry_run
 
-    print(f"[runner] starting weekly run (dry_run={effective_dry_run})")
+    print(
+        f"[runner] starting weekly run "
+        f"(dry_run={effective_dry_run}, bootstrap_only={bootstrap_only})"
+    )
 
-    # In dry-run we still need a real sheets connection to READ data,
-    # but no writes will happen because agents short-circuit.
+    # Dry-run still needs sheets to READ data; bootstrap-only only writes
+    # the tab schema. Either way we need a real sheets connection.
     claude, sheets = _build_clients(config)
 
-    if not effective_dry_run:
-        # First-run safety: make sure every tab + correct headers exist.
-        try:
-            sheets.ensure_all_tabs()
-        except Exception as e:
-            print(f"[runner] ensure_all_tabs failed: {e}")
+    # Tab creation is idempotent and schema-only — safe to run in any mode.
+    # Doing it always (not just on real runs) lets dry-run and bootstrap-only
+    # validate the schema without paying for an agent pass.
+    try:
+        sheets.ensure_all_tabs()
+    except Exception as e:
+        print(f"[runner] ensure_all_tabs failed: {e}")
+
+    if bootstrap_only:
+        print("[runner] bootstrap_only=true — tabs ensured, exiting without agent runs")
+        return 0
 
     statuses = _run_specialists(config, claude, sheets, dry_run=effective_dry_run)
 
@@ -168,9 +176,14 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Print memos instead of writing to the sheet; skip the digest email.",
     )
+    parser.add_argument(
+        "--bootstrap-only",
+        action="store_true",
+        help="Create any missing sheet tabs and exit. No Claude calls, costs $0.",
+    )
     args = parser.parse_args(argv)
     dry_run_override = True if args.dry_run else None
-    return run_weekly(dry_run=dry_run_override)
+    return run_weekly(dry_run=dry_run_override, bootstrap_only=args.bootstrap_only)
 
 
 if __name__ == "__main__":
