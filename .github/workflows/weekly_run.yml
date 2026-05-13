@@ -12,6 +12,10 @@ on:
         description: "Dry run (no sheet writes, no email)"
         required: false
         default: "false"
+      bootstrap_only:
+        description: "Bootstrap only — create tabs and exit. No Claude calls, costs $0."
+        required: false
+        default: "false"
 
 jobs:
   run:
@@ -43,7 +47,12 @@ jobs:
           # the Anthropic default-tier 30k input tokens/minute rate limit.
           # Set to 0 if you're on a higher API tier.
           VC_ACTIONS_INTER_AGENT_DELAY_SECONDS: ${{ vars.VC_ACTIONS_INTER_AGENT_DELAY_SECONDS || '60' }}
-        run: python -m scripts.runner
+        run: |
+          ARGS=""
+          if [ "${{ inputs.bootstrap_only }}" = "true" ]; then
+            ARGS="$ARGS --bootstrap-only"
+          fi
+          python -m scripts.runner $ARGS
 
   test:
     runs-on: ubuntu-latest
