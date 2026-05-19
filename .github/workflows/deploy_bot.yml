@@ -1,0 +1,53 @@
+name: deploy_bot
+
+# Deploys the Telegram chat bot to Fly.io.
+#
+# Prereqs (one-time, all via web UIs):
+#   1. Fly.io account at https://fly.io (no card needed for free tier)
+#   2. Fly app created with the name in fly.toml (default: "vc-actions-bot")
+#      Create via Fly dashboard: https://fly.io/dashboard → "New app"
+#   3. Fly secrets set via the Fly dashboard (Settings → Secrets) for that app:
+#        ANTHROPIC_API_KEY
+#        GOOGLE_SHEET_ID
+#        GOOGLE_SERVICE_ACCOUNT_JSON
+#        TELEGRAM_BOT_TOKEN          (from @BotFather on Telegram)
+#        TELEGRAM_ALLOWED_USER_ID    (from @userinfobot on Telegram)
+#   4. A Fly personal access token created via https://fly.io/user/personal_access_tokens
+#      and saved as a GitHub repo secret named FLY_API_TOKEN.
+#
+# After prereqs are in place, this workflow can be triggered manually any time
+# from the Actions tab. It also auto-runs when chat code or deploy config changes.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'chat/**'
+      - 'Dockerfile'
+      - 'fly.toml'
+      - '.github/workflows/deploy_bot.yml'
+      - 'requirements.txt'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-bot
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Verify Fly token is configured
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::FLY_API_TOKEN secret is not set. Add it under"
+            echo "::error::https://github.com/${{ github.repository }}/settings/secrets/actions"
+            exit 1
+          fi
+      - name: Deploy to Fly.io
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only
