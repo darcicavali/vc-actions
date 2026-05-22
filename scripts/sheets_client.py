@@ -250,6 +250,11 @@ class SheetsClient:
     def get_worksheet(self, title: str):
         return _retry(lambda: self._ss.worksheet(title))
 
+    def list_tab_names(self) -> list[str]:
+        """Return every tab title in the spreadsheet, in sheet order."""
+        worksheets = _retry(lambda: self._ss.worksheets())
+        return [ws.title for ws in worksheets]
+
     def ensure_tab(self, title: str, headers: list[str]) -> None:
         try:
             ws = self.get_worksheet(title)

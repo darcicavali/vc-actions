@@ -133,18 +133,34 @@ def _send_digest_email(config: Config, coordinator: GoalsAgent) -> None:
     print(f"[digest] omnisend status={result.status_code}")
 
 
-def run_weekly(*, dry_run: bool | None = None, bootstrap_only: bool = False) -> int:
+def run_weekly(
+    *,
+    dry_run: bool | None = None,
+    bootstrap_only: bool = False,
+    list_tabs: bool = False,
+) -> int:
     config = get_config()
     effective_dry_run = config.dry_run if dry_run is None else dry_run
 
     print(
         f"[runner] starting weekly run "
-        f"(dry_run={effective_dry_run}, bootstrap_only={bootstrap_only})"
+        f"(dry_run={effective_dry_run}, "
+        f"bootstrap_only={bootstrap_only}, "
+        f"list_tabs={list_tabs})"
     )
 
     # Dry-run still needs sheets to READ data; bootstrap-only only writes
     # the tab schema. Either way we need a real sheets connection.
     claude, sheets = _build_clients(config)
+
+    if list_tabs:
+        # Diagnostic mode: print every tab title to the log and exit. No
+        # Claude calls, no schema writes — purely read-only.
+        names = sheets.list_tab_names()
+        print(f"[runner] list_tabs=true — found {len(names)} tabs:")
+        for i, name in enumerate(names, start=1):
+            print(f"  {i:>3}. {name}")
+        return 0
 
     # Tab creation is idempotent and schema-only — safe to run in any mode.
     # Doing it always (not just on real runs) lets dry-run and bootstrap-only
@@ -181,9 +197,18 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Create any missing sheet tabs and exit. No Claude calls, costs $0.",
     )
+    parser.add_argument(
+        "--list-tabs",
+        action="store_true",
+        help="Print every tab title in the spreadsheet and exit. Read-only, costs $0.",
+    )
     args = parser.parse_args(argv)
     dry_run_override = True if args.dry_run else None
-    return run_weekly(dry_run=dry_run_override, bootstrap_only=args.bootstrap_only)
+    return run_weekly(
+        dry_run=dry_run_override,
+        bootstrap_only=args.bootstrap_only,
+        list_tabs=args.list_tabs,
+    )
 
 
 if __name__ == "__main__":
