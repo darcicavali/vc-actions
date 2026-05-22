@@ -35,6 +35,7 @@ class StubClaudeClient:
         *,
         system: list[dict] | str | None = None,
         model: str | None = None,
+        max_tokens: int | None = None,
     ) -> ClaudeResponse:
         sys_text = ""
         if isinstance(system, list):
