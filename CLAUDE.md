@@ -70,10 +70,10 @@ This file plus the latest entries in `BUILD_JOURNAL.md` (especially the `## Ops 
 | AdsAgent | ✅ Filled 2026-05-19 | 7 sections — strong baseline (65+ age band waste $2.7k, freq>5 → CTR halving, current Apr-May creative drought, WhatsApp inflation caveat all captured) |
 | CustomerAgent | ✅ Filled 2026-05-22 | 8 sections — 63.7% one-timers, top 5% = 51.9% revenue, "missing middle" 2-4 order segment, multiple confidence=low data gaps honestly flagged |
 | ProductAgent | ✅ Filled 2026-05-22 | 8 sections — Remanessente/Fancy/Petite Poa/house-line identified as durable vendor priorities; Legging/Acessories/Blazer/Jackets flagged as margin traps; "Uncategorized" $36.9k revenue flagged as Shopify product-type tagging gap not buying issue; discount_thresholds left at confidence=low pending Darci's explicit markdown rule |
-| ContentAgent | 🟡 Next up | CSVs: IG Summary, IG Posts, IG Content Types |
-| FunnelAgent | ⬜ | CSVs: Weekly Summary, Landing Pages, Device Breakdown, Funnel by Source |
-| FinancialAgent | ⬜ | CSVs: Financial Summary, Monthly Financial (+ Returns/COGS/Margin Trends when those exist) |
-| SEOAgent | ⬜ | CSVs: Landing Pages (+ GBP/Search Console/Product Meta when those exist) |
+| ContentAgent | ✅ Filled 2026-05-22 | 8 sections — Carousels weakest format on this account (every one ≤280 reach), People > Product by 1.7x for reach, Profile Views (not Saves) predict Website Clicks (r=0.77) |
+| FunnelAgent | ✅ Filled 2026-05-22 | 8 sections — View→ATC at 7.4% (vs 12% benchmark) is dominant leak, concentrated at PDP (44% engagement / 69s); Email's 0% GA4 conv is attribution leak not broken program; ~28% of weeks show IC→Purchase >100% from WhatsApp closes (not a bug) |
+| FinancialAgent | ✅ Filled 2026-05-22 | 8 sections — CRITICAL: $360k goal mathematically out of reach (YTD $67.8k, need $36.5k/mo vs TTM avg $16.9k); margin compressing 49%→45% YTD; return rate breached (>15% for 6 of last 7 months); Feb26 discount breach (20.6%); ad spend + fixed costs data gaps flagged confidence=low |
+| SEOAgent | 🟡 Next up | CSVs: Landing Pages (only existing tab). GBP/Search Console/Product Meta tabs don't exist yet — baseline will be lighter; expanded website-inspection capability deferred to Phase 2 |
 | GoalsAgent (coordinator) | ⬜ | Built last — synthesizes patterns across all specialist baselines |
 
 ### Schema gaps (logged for later, not blocking)
