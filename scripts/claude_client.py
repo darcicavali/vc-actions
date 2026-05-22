@@ -88,15 +88,18 @@ class ClaudeClient:
         *,
         system: list[dict] | str | None = None,
         model: str | None = None,
+        max_tokens: int | None = None,
     ) -> ClaudeResponse:
         """Send a message. `system` may be a string OR a list of text blocks
         (with optional `cache_control` for prompt caching). `model` overrides
         the client default for this call only — used to route lighter agents
-        to Haiku without spinning up a second client.
+        to Haiku without spinning up a second client. `max_tokens` overrides
+        the client default for this call only — used to give the coordinator
+        more headroom than specialists need.
         """
         kwargs: dict = {
             "model": model or self.model,
-            "max_tokens": self.max_tokens,
+            "max_tokens": max_tokens or self.max_tokens,
             "messages": [{"role": "user", "content": user_prompt}],
         }
         if system is not None:

@@ -95,6 +95,12 @@ class GoalsAgent(BaseAgent):
     name = "GoalsAgent"
     role_prompt_file = "coordinator.md"
 
+    # Coordinator emits a full action plan: summary, pace_status, plus a
+    # sequenced_actions array typically containing 7-12 recommendations with
+    # multiple fields each. First real production run (2026-05-22) hit
+    # mid-JSON truncation at the default 2500 limit. 8000 leaves safe headroom.
+    preferred_max_tokens = 8000
+
     # Memos are read freshly within the last N hours of this run.
     SAME_RUN_WINDOW_HOURS = 6
 

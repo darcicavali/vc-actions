@@ -140,6 +140,12 @@ class BaseAgent:
     # use the client's default model (set from config.anthropic_model).
     preferred_model: str | None = None
 
+    # Override in subclasses that produce larger outputs than the default
+    # 2500-token limit (e.g. the GoalsAgent coordinator emits a full action
+    # plan with 7+ sequenced actions and needs ~6000-8000 tokens to avoid
+    # mid-JSON truncation). `None` means use the client's default.
+    preferred_max_tokens: int | None = None
+
     def __init__(
         self,
         claude_client: ClaudeClient,
@@ -327,6 +333,7 @@ class BaseAgent:
                 user_message,
                 system=system_blocks,
                 model=self.preferred_model,
+                max_tokens=self.preferred_max_tokens,
             )
             memo = self.parse_response(response.text)
             self.write_memo(memo)

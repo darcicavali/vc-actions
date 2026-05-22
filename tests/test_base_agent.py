@@ -34,6 +34,7 @@ class StubClaudeClient:
     last_system: list[dict] | str | None = None
     last_user_message: str | None = None
     last_model: str | None = None
+    last_max_tokens: int | None = None
     raise_exc: Exception | None = None
 
     def complete(
@@ -42,10 +43,12 @@ class StubClaudeClient:
         *,
         system: list[dict] | str | None = None,
         model: str | None = None,
+        max_tokens: int | None = None,
     ) -> ClaudeResponse:
         self.last_user_message = user_prompt
         self.last_system = system
         self.last_model = model
+        self.last_max_tokens = max_tokens
         # last_prompt = combined view so existing substring assertions keep working.
         sys_text = ""
         if isinstance(system, list):
@@ -393,6 +396,29 @@ def test_preferred_model_defaults_to_none(sheets, fake_config, prompts_dir):
     agent = StubAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
     agent.run()
     assert claude.last_model is None
+
+
+def test_preferred_max_tokens_is_forwarded_to_client(sheets, fake_config, prompts_dir):
+    """GoalsAgent overrides preferred_max_tokens because its action-plan JSON
+    is larger than specialists' memos. First production run (2026-05-22) hit
+    mid-JSON truncation at the default; this test guards the override path."""
+
+    class BigOutputAgent(StubAgent):
+        preferred_max_tokens = 8000
+
+    claude = StubClaudeClient(next_text=_good_response_json())
+    agent = BigOutputAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
+    agent.run()
+    assert claude.last_max_tokens == 8000
+
+
+def test_preferred_max_tokens_defaults_to_none(sheets, fake_config, prompts_dir):
+    """Unspecified preferred_max_tokens passes None — the client falls back
+    to its default (currently 2500)."""
+    claude = StubClaudeClient(next_text=_good_response_json())
+    agent = StubAgent(claude, sheets, fake_config, prompts_dir=prompts_dir)
+    agent.run()
+    assert claude.last_max_tokens is None
 
 
 def test_default_max_rows_per_tab_is_4(sheets, fake_config, prompts_dir):

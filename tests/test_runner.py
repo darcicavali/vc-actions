@@ -37,6 +37,7 @@ class StubClaudeClient:
         *,
         system: list[dict] | str | None = None,
         model: str | None = None,
+        max_tokens: int | None = None,
     ) -> ClaudeResponse:
         self.calls += 1
         sys_text = ""

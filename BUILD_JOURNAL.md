@@ -430,3 +430,135 @@ session that stalled. Memory files were missing a lot.
 - If a session ends mid-task, the *last commit* on the working branch is
   the recovery point. Pick up there. Do not restart.
 
+
+
+---
+
+## Ops — 2026-05-19 to 2026-05-22 — Deployment shakedown + first two baselines
+
+### Session goal
+Move from "PR #4 merged" to "system actually producing useful output." This
+meant: (a) prove the dry-run works end-to-end with real secrets, (b) get
+operator-friendly tools (bootstrap, list_tabs) in place so Darci can run
+diagnostics without paying for agent passes, (c) start filling baselines
+via her Claude.ai Max subscription.
+
+### What was attempted
+- 2026-05-19: Darci triggered the first dry-run after the PR #4 merge. It
+  finished green and cost $0.26 — within the $0.10-0.30 estimate but on
+  the high end (cache cold, baselines empty, no prior memos to compress
+  against).
+- Found a real bug: the new tabs (`BASELINE: *`, `Bot Actions`, `Bot Notes`)
+  did NOT appear in her sheet after the dry-run. Root cause:
+  `ensure_all_tabs()` was gated behind `if not effective_dry_run` in
+  `scripts/runner.py`. Dry-run intentionally skipped tab creation, which
+  is harmless to do in any mode (idempotent + schema-only).
+- Shipped PR #5: moved `ensure_all_tabs()` out of the dry-run guard AND
+  added a new `--bootstrap-only` flag + workflow input. Bootstrap mode
+  creates tabs and exits before any agent runs — **costs $0**. Darci ran
+  it; all 10 new tabs appeared.
+- Shipped PR #6: `.github/workflows/deploy_bot.yml` — GitHub Actions
+  workflow that runs `flyctl deploy --remote-only` for the Telegram chat
+  bot. Triggered manually or on changes to `chat/`, `Dockerfile`,
+  `fly.toml`, requirements, or itself. Includes a guard step that fails
+  early with a clear pointer to the secrets page if `FLY_API_TOKEN`
+  isn't set. Merged but not yet exercised (Darci hasn't done Fly.io
+  account + Telegram bot setup).
+- Shipped PR #7 (still open): `--list-tabs` flag + workflow input that
+  prints every tab title in the spreadsheet and exits. Read-only,
+  costs $0. Created so Claude (this session) can see what tabs Darci
+  actually has without asking her to screenshot a 53-row tab bar.
+  Darci ultimately pasted the list manually instead of running the
+  workflow, but the tool is still useful for future sessions.
+- Track A (baselines via Claude.ai Max):
+  - **AdsAgent baseline filled** 2026-05-19 — 7 sections. Notable
+    findings: female 65+ age band wastes ~$2.7k at ROAS 0.57 over the
+    modern era; freq>5 on RT-non-cust correlates with CTR drop and ROAS
+    halving; current Apr-May creative drought (active warm creatives
+    dropped from 10-13/week to 2/week); WhatsApp attribution inflates
+    RT-customer ROAS by ~2x.
+  - **CustomerAgent baseline filled** 2026-05-22 — 8 sections. Key
+    findings: 63.7% of named customers are one-timers; top 5% drive
+    51.9% of named revenue; "missing middle" — 2-4-order segment is
+    thin (113 customers) and is the natural place to push; retention
+    curves all in the 22-27% band (OK per role rubric); 4 sections at
+    confidence=low because the export doesn't include order-date
+    timestamps, Omnisend flow performance, or demographics.
+
+### What worked
+- The Claude.ai Max baseline workflow is genuinely good. Both AdsAgent
+  and CustomerAgent outputs were structured, well-cited, and properly
+  calibrated (high confidence where data is firm, low where it isn't).
+  No re-work needed — both got approved on first review.
+- `bootstrap_only` mode + `list_tabs` mode both shipped with one test
+  each and 100% pass rate. The pattern of "diagnostic free mode behind
+  a CLI flag + workflow input" is reusable; future ops tools can follow
+  the same shape.
+- Updating CLAUDE.md as the snapshot and adding ops entries to the
+  journal worked well — Darci explicitly asked "keep updating the log
+  and memory as we progress," confirming the system is doing its job.
+
+### What failed / had to retry
+- I initially assumed the merge of PR #4 was the end of the deployment
+  work and that re-running the dry-run was "the next button click."
+  That was wrong twice: first because the tabs didn't auto-create
+  (gated behind dry_run), second because I hadn't read the previous
+  session's transcript carefully enough to know what was already built.
+  Lesson: reconstruct state from git AND from CLAUDE.md AND ask Darci
+  what she remembers — don't take one source as canonical.
+- I underestimated the dry-run cost ($0.26 vs $0.10-0.15 expected).
+  Reason: caching is cold on a fresh run, AND baselines are empty so
+  prompts are still bigger than the long-run target. The $0.10-0.15
+  target is real but only once baselines are filled and the cache
+  warms over consecutive weeks.
+
+### Decisions made
+- **Tab creation runs in every mode now**, not just real runs. Schema
+  changes shouldn't require paying for an agent pass to materialize.
+- **Diagnostic-only modes are first-class.** `bootstrap_only` and
+  `list_tabs` set the precedent: any future op (list memos, audit a
+  baseline, dump runtime log) should be reachable via a workflow input
+  that costs $0 and doesn't side-effect the sheet.
+- **One Claude.ai conversation per agent baseline.** Cleaner context,
+  avoids cross-contamination, easier to find when refreshing monthly.
+- **Schema gaps (Returns, COGS, Margin Trends, All Products, GBP
+  Performance, Search Console Queries, Product Meta) are deferred.**
+  Don't fix the agent code or extend the dashboard until after all
+  baselines are in and we know what's actually missing vs misnamed.
+- **Maintenance-reminder feature deferred to after 3-4 baselines.**
+  Need real `last_updated` data to validate the staleness logic.
+
+### Open questions
+- Should `All Products` in ProductAgent's `data_tabs` be split into
+  `All Product by Type` + `All Product by Vendor` to match Darci's
+  sheet, or should the upstream `vc-dashboard` consolidate them?
+- Returns data shows median 0% via the customer baseline but a dedicated
+  `Returns` tab doesn't exist. Where is returns data actually surfaced
+  in the dashboard? Need to verify before the FinancialAgent baseline.
+- Telegram bot deployment is technically ready but Darci hasn't started
+  Fly.io setup. Should we wait until ALL baselines are in, or run them
+  in parallel? Current plan: baselines first because they're
+  foundational; Track B kicks off after ~4-5 baselines.
+
+### Next step
+1. ProductAgent baseline (next agent up). CSVs: Product by Type,
+   Product by Vendor, Monthly Product by Type, Monthly Product by
+   Vendor, All Product by Type, All Product by Vendor.
+2. Then ContentAgent, FunnelAgent, FinancialAgent, SEOAgent,
+   GoalsAgent.
+3. After 3-4 baselines: build the maintenance-reminder section in the
+   weekly digest.
+4. Then exercise Track B (Fly.io + Telegram).
+
+### Learnings for future sessions
+- **Always run `git log --all --oneline` AND read the latest 1-2 ops
+  entries before responding.** Multiple times this session I had to
+  correct myself after discovering state via git that wasn't in
+  CLAUDE.md yet.
+- **Diagnostic-only modes (no Claude calls, no writes) are gold.**
+  Build one any time the operator needs to "just look" at something.
+- **Calibrated confidence in baselines matters.** Both AdsAgent and
+  CustomerAgent flagged data gaps with confidence=low rather than
+  inventing — that honesty makes the weekly agent more trustworthy.
+- **Darci's new rule (action items at the bottom of every reply)** is
+  honored every message now. Codified in CLAUDE.md.
