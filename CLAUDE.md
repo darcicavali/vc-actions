@@ -69,8 +69,8 @@ This file plus the latest entries in `BUILD_JOURNAL.md` (especially the `## Ops 
 |---|---|---|
 | AdsAgent | ✅ Filled 2026-05-19 | 7 sections — strong baseline (65+ age band waste $2.7k, freq>5 → CTR halving, current Apr-May creative drought, WhatsApp inflation caveat all captured) |
 | CustomerAgent | ✅ Filled 2026-05-22 | 8 sections — 63.7% one-timers, top 5% = 51.9% revenue, "missing middle" 2-4 order segment, multiple confidence=low data gaps honestly flagged |
-| ProductAgent | 🟡 Next up | CSVs: Product by Type, Product by Vendor, Monthly Product by Type, Monthly Product by Vendor, All Product by Type, All Product by Vendor |
-| ContentAgent | ⬜ | CSVs: IG Summary, IG Posts, IG Content Types |
+| ProductAgent | ✅ Filled 2026-05-22 | 8 sections — Remanessente/Fancy/Petite Poa/house-line identified as durable vendor priorities; Legging/Acessories/Blazer/Jackets flagged as margin traps; "Uncategorized" $36.9k revenue flagged as Shopify product-type tagging gap not buying issue; discount_thresholds left at confidence=low pending Darci's explicit markdown rule |
+| ContentAgent | 🟡 Next up | CSVs: IG Summary, IG Posts, IG Content Types |
 | FunnelAgent | ⬜ | CSVs: Weekly Summary, Landing Pages, Device Breakdown, Funnel by Source |
 | FinancialAgent | ⬜ | CSVs: Financial Summary, Monthly Financial (+ Returns/COGS/Margin Trends when those exist) |
 | SEOAgent | ⬜ | CSVs: Landing Pages (+ GBP/Search Console/Product Meta when those exist) |
