@@ -37,54 +37,83 @@ This file plus the latest entries in `BUILD_JOURNAL.md` (especially the `## Ops 
 - `VC_ACTIONS_MEMORY_AND_JOURNAL_v5.md` — memory layers + journaling
 - `BUILD_JOURNAL.md` — what happened, session by session
 
-**Code is built and tested.** 62 tests pass. The framework is *deployed* via GitHub Actions (`.github/workflows/weekly_run.yml`) — manual trigger + Monday 13:00 UTC cron.
+**Code is built and tested.** 106 tests pass. The framework is *deployed* via GitHub Actions (`.github/workflows/weekly_run.yml`) — manual trigger + Monday 13:00 UTC cron.
 
 ---
 
 ## Current state (update this section every session)
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-22
 
 ### Deployment status
 
 - GitHub Actions workflow exists: `.github/workflows/weekly_run.yml`.
 - Required secrets in GitHub: **ANTHROPIC_API_KEY, GOOGLE_SHEET_ID, GOOGLE_SERVICE_ACCOUNT_JSON** — added in a prior session.
 - Google Sheet shared with the service account email — done in a prior session.
-- **First dry-run was attempted and surfaced 3 real failures, all now fixed in main:**
-  1. Per-tab row dump pushed prompts over Claude's 200k token limit. Fixed: `BaseAgent` caps each tab at 50 most-recent rows (commit `535221c`).
-  2. Specialists hit Anthropic's 30k input-tokens/minute rate limit. Fixed: runner sleeps `VC_ACTIONS_INTER_AGENT_DELAY_SECONDS` (default 60s) between specialists (commit `535221c`).
-  3. Windows `cp1252` locale broke prompt-file reads (em dashes). Fixed: UTF-8 pinned on every prompt/journal read (commits `4ea6c46`, `005ae2e`).
+- **First dry-run failures all fixed in main:** 200k-token overflow (`535221c`), rate-limit pacing (`535221c`), Windows UTF-8 (`4ea6c46`, `005ae2e`).
+- **Second dry-run (2026-05-19) ran green** end-to-end (~$0.26). New tabs did NOT auto-create because `ensure_all_tabs()` was gated behind `not dry_run`. Fixed in PR #5 (`bootstrap_only` mode + always-on `ensure_all_tabs`).
+- **Bootstrap_only run (2026-05-19) created all 10 new tabs** for $0: `BASELINE: AdsAgent`, `BASELINE: CustomerAgent`, `BASELINE: ProductAgent`, `BASELINE: ContentAgent`, `BASELINE: FunnelAgent`, `BASELINE: FinancialAgent`, `BASELINE: SEOAgent`, `BASELINE: GoalsAgent`, `Bot Actions`, `Bot Notes`.
 
-### Unmerged work sitting on `origin/claude/build-multiagent-system-Q4Z6T`
+### Merged PRs (latest first)
 
-**STATUS: MERGED 2026-05-13 via PR #4** (`b831786`). All three feature commits are now on `main`.
+| PR | Title | Status | Notes |
+|---|---|---|---|
+| #7 | `list_tabs` flag for free read-only sheet inspection | OPEN | Adds workflow input to print every tab title in Actions log. Not yet merged — Darci provided tab list manually. |
+| #6 | Fly.io deploy workflow for the Telegram chat bot | ✅ Merged 2026-05-19 | New `deploy_bot.yml` triggers `flyctl deploy --remote-only`. Not yet exercised — needs Fly account + secrets first. |
+| #5 | `bootstrap_only` mode for free tab creation | ✅ Merged 2026-05-13 | Also moved `ensure_all_tabs()` out of the dry-run guard. |
+| #4 | Land cost cuts + baseline layer + chat bot | ✅ Merged 2026-05-13 | Cost, baseline, chat bot all on main. |
 
-The three commits that landed:
+### Baseline progress (Track A — Darci's manual workflow via Claude.ai Max)
 
-1. **`55fbc73` — Cost cuts (PR 3):** prompt caching, Haiku 4.5 routing for Content + SEO, default 50→12 rows/tab. Drops per-run cost ~85% (~$0.80 → ~$0.10–0.15).
-2. **`bb61af9` — Baseline layer (PR 4):** new `BASELINE: <Agent>` tabs (one per agent) carry curated long-run wisdom. `baseline_prompts/` directory holds paste-into-Claude.ai prompt packs; `BASELINES.md` is the operator guide for refreshing them via Darci's Claude Max subscription (no API cost). Default rows/tab drops further (12→4) because the baseline replaces raw history.
-3. **`87c8270` — Chat bot (PR 5):** `chat/` package — Streamlit web UI (`chat/web_app.py`) + Telegram long-polling bot (`chat/telegram_app.py`) over one shared `brain.py`. SQLite conversation memory. `Bot Actions` audit tab + `Bot Notes` forward-channel tab. Guardrail framework wired for future destructive tools (none today; only append-only writes ship). Dockerfile + `fly.toml` stubs for Fly.io deploy when Darci's ready.
+| Agent | Status | Notes |
+|---|---|---|
+| AdsAgent | ✅ Filled 2026-05-19 | 7 sections — strong baseline (65+ age band waste $2.7k, freq>5 → CTR halving, current Apr-May creative drought, WhatsApp inflation caveat all captured) |
+| CustomerAgent | ✅ Filled 2026-05-22 | 8 sections — 63.7% one-timers, top 5% = 51.9% revenue, "missing middle" 2-4 order segment, multiple confidence=low data gaps honestly flagged |
+| ProductAgent | 🟡 Next up | CSVs: Product by Type, Product by Vendor, Monthly Product by Type, Monthly Product by Vendor, All Product by Type, All Product by Vendor |
+| ContentAgent | ⬜ | CSVs: IG Summary, IG Posts, IG Content Types |
+| FunnelAgent | ⬜ | CSVs: Weekly Summary, Landing Pages, Device Breakdown, Funnel by Source |
+| FinancialAgent | ⬜ | CSVs: Financial Summary, Monthly Financial (+ Returns/COGS/Margin Trends when those exist) |
+| SEOAgent | ⬜ | CSVs: Landing Pages (+ GBP/Search Console/Product Meta when those exist) |
+| GoalsAgent (coordinator) | ⬜ | Built last — synthesizes patterns across all specialist baselines |
+
+### Schema gaps (logged for later, not blocking)
+
+Darci's sheet has 53 tabs. Most agent `data_tabs` declarations match cleanly. These don't:
+
+- `Returns` — referenced by ProductAgent + FinancialAgent. Not in sheet. ProductAgent baseline noted "Returns: median 0% in both channels" from the customer tabs, so some data exists elsewhere.
+- `COGS` — referenced by FinancialAgent. Not in sheet.
+- `Margin Trends` — referenced by FinancialAgent. Not in sheet.
+- `All Products` — referenced by ProductAgent. Sheet has `All Product by Type` and `All Product by Vendor` instead (split by dimension).
+- `GBP Performance`, `Search Console Queries`, `Product Meta` — referenced by SEOAgent. None in sheet (external data sources not yet wired in).
+
+Decision deferred until after baselines complete: either update agent `data_tabs` to match the actual sheet names, or extend the `vc-dashboard` upstream to produce these tabs.
+
+### Track B — chat bot deployment
+
+- Code merged in PR #4. Tested. 34 chat-layer tests passing.
+- Fly.io deploy workflow merged in PR #6.
+- **Darci has not yet started Fly.io / Telegram setup.** Phase 1 (Telegram via @BotFather + @userinfobot) is the entry point when she's ready. Workflow assumes Fly account + secrets are already in place.
+
+### Track C — maintenance reminders (planned, not built)
+
+Darci asked for a way to be reminded of monthly baseline refreshes (and other recurring actions). Agreed approach: extend the existing Monday weekly email digest to include a "Maintenance" section that reads `last_updated` from every BASELINE tab and flags any older than 30 days OR never filled. To be built after 2-3 baselines are in so the logic has real data to test against.
 
 ### Next actions, in order
 
-1. ~~**Land the unmerged branch into `main`**~~ ✅ Done via PR #4 (2026-05-13).
-2. **Re-trigger the dry-run** from GitHub Actions web UI now that PR #4 is merged. Confirms the rate-limit / token-cap / UTF-8 fixes hold AND that the cost optimizations work in production. New tabs (`BASELINE: <Agent>`, `Bot Actions`, `Bot Notes`) will auto-create on first run — Darci should see them appear in the sheet.
-3. **Stand up the chat bot locally** — Streamlit first (laptop), then Telegram (phone). Requires Darci to create a Telegram bot via `@BotFather` and grab her user ID via `@userinfobot` (web/app, no terminal).
-4. **Scope the baseline-prompt workflow** — Darci pastes each agent's `baseline_prompts/*.md` into a Claude.ai conversation, attaches relevant CSVs, gets back a populated baseline she pastes into the `BASELINE: <Agent>` tab. Repeats monthly.
+1. **Continue baselines (Track A):** ProductAgent next, then ContentAgent / FunnelAgent / FinancialAgent / SEOAgent / GoalsAgent.
+2. **Build maintenance reminders (Track C)** after 3-4 baselines are filled.
+3. **Start Track B Phase 1** when Darci is ready — Telegram bot creation in @BotFather, then Fly.io setup.
+4. **First real production run** (not dry-run) after enough baselines are in to produce a useful action plan. Likely after ProductAgent + 2 more.
+5. **Schema gap cleanup** once everything else is working.
 
 ### Open requirement — two-way communication (NEW, not in v4/v5 spec)
 
-Darci wants more than the weekly Monday email. She wants to be able to **ask questions and give instructions to the agents** between weekly runs. Last session she asked about:
-
-1. **Telegram bot** — chat with the agents from her phone
-2. **Desktop chat** — same thing but on her computer
-
-This is not yet designed or built. The spec docs predate this requirement. Treat it as an active open requirement to scope next.
+Darci wants more than the weekly Monday email. The chat bot (Track B) is the answer; the code is merged but not yet deployed.
 
 ### Known blockers / unknowns
 
-- Tab names in `vc-dashboard` for non-Meta specialists are best-guess from the spec. First dry-run will surface any mismatches as `WorksheetNotFound` in the data block (will not crash the run, just degrade data quality).
-- Omnisend automation listening for event `vc_weekly_plan` must be created manually by Darci before the digest email will actually send. Not blocking dry-run.
+- Some agents reference tabs that don't exist in the sheet (see Schema gaps above). Not blocking — agents handle missing tabs gracefully with `data_quality: incomplete`.
+- Omnisend automation listening for event `vc_weekly_plan` must be created manually by Darci before the digest email will actually send. Not blocking dry-runs.
 
 ---
 
