@@ -16,6 +16,10 @@ on:
         description: "Bootstrap only — create tabs and exit. No Claude calls, costs $0."
         required: false
         default: "false"
+      list_tabs:
+        description: "List every tab in the sheet and exit. Read-only, costs $0."
+        required: false
+        default: "false"
 
 jobs:
   run:
@@ -51,6 +55,9 @@ jobs:
           ARGS=""
           if [ "${{ inputs.bootstrap_only }}" = "true" ]; then
             ARGS="$ARGS --bootstrap-only"
+          fi
+          if [ "${{ inputs.list_tabs }}" = "true" ]; then
+            ARGS="$ARGS --list-tabs"
           fi
           python -m scripts.runner $ARGS
 

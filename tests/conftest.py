@@ -71,6 +71,9 @@ class FakeSpreadsheet:
         self._worksheets[title] = ws
         return ws
 
+    def worksheets(self) -> list[FakeWorksheet]:
+        return list(self._worksheets.values())
+
 
 @pytest.fixture
 def fake_spreadsheet() -> FakeSpreadsheet:

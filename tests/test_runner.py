@@ -258,3 +258,18 @@ def test_bootstrap_only_creates_tabs_without_calling_claude(
     out = capsys.readouterr().out
     assert "bootstrap_only=true" in out
     assert "[DRY RUN]" not in out
+
+
+def test_list_tabs_prints_titles_without_calling_claude(
+    monkeypatch, sheets, fake_spreadsheet, base_config, prompts_dir, capsys
+):
+    claude = _patch_runner(monkeypatch, sheets, base_config, prompts_dir)
+    code = run_weekly(list_tabs=True)
+    assert code == 0
+    # No agent ran — no Claude calls at all.
+    assert claude.calls == 0
+    out = capsys.readouterr().out
+    assert "list_tabs=true" in out
+    # Headers from TAB_SCHEMAS land in the output (sheets fixture pre-seeds them).
+    assert "Agent Memos" in out
+    assert "Action Plan" in out
