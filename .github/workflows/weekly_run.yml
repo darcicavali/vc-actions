@@ -20,6 +20,10 @@ on:
         description: "List every tab in the sheet and exit. Read-only, costs $0."
         required: false
         default: "false"
+      test_email:
+        description: "Send one sample digest email to verify Resend wiring. Costs $0."
+        required: false
+        default: "false"
 
 jobs:
   run:
@@ -62,6 +66,9 @@ jobs:
           fi
           if [ "${{ inputs.list_tabs }}" = "true" ]; then
             ARGS="$ARGS --list-tabs"
+          fi
+          if [ "${{ inputs.test_email }}" = "true" ]; then
+            ARGS="$ARGS --test-email"
           fi
           python -m scripts.runner $ARGS
 

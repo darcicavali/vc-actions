@@ -113,13 +113,12 @@ def _run_coordinator(
         return None
 
 
-def _send_digest_email(config: Config, coordinator: GoalsAgent) -> None:
+def _send_digest_email(config: Config, plan: "GoalsAgent.last_plan | None") -> None:
     """Email Darci the action plan. Prefers Resend (simpler, already in use
     on the ig-gbp-sync repo); falls back to Omnisend if Resend isn't set up.
     If neither is configured, the run completes silently and the plan still
     lands in the Action Plan tab.
     """
-    plan = coordinator.last_plan
     if plan is None:
         print("[digest] no plan to send")
         return
@@ -154,11 +153,76 @@ def _send_digest_email(config: Config, coordinator: GoalsAgent) -> None:
     print("[digest] no email provider configured — skipping email (plan is in the sheet)")
 
 
+def _sample_action_plan():
+    """Build a realistic-looking ActionPlan for the --test-email path. Lets
+    Darci verify the Resend wiring without paying for a full agent run."""
+    from datetime import datetime, timezone
+
+    from agents.goals_agent import ActionPlan
+
+    return ActionPlan(
+        generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        summary=(
+            "TEST EMAIL — this is a sample plan to verify Resend delivery. "
+            "Real Monday emails will replace this with the week's actual analysis."
+        ),
+        one_thing_this_week=(
+            "This is the 'one thing' slot — the highest-leverage move the system "
+            "picks each week from across all 7 specialists."
+        ),
+        pace_status={
+            "ytd_revenue": 67767,
+            "target_ytd": 124615,
+            "gap": -56848,
+            "pace_signal": "behind",
+            "weeks_remaining": 31,
+            "needed_per_week": 9426,
+        },
+        themes=[],
+        sequenced_actions=[
+            {
+                "priority": 1,
+                "day": "Monday",
+                "action": "Example: pause RT-non-customer creative refresh and shift $5/day to ASC prospecting",
+                "agent_source": "AdsAgent",
+                "effort": "low",
+                "impact_dollars_per_week": 280,
+            },
+            {
+                "priority": 2,
+                "day": "Tuesday",
+                "action": "Example: refresh PDP hero images for top 5 traffic products",
+                "agent_source": "FunnelAgent",
+                "effort": "medium",
+                "impact_dollars_per_week": 400,
+            },
+            {
+                "priority": 3,
+                "day": "Wednesday",
+                "action": "Example: post BTS reel about a Brazilian-vendor sourcing story",
+                "agent_source": "ContentAgent",
+                "effort": "medium",
+                "impact_dollars_per_week": 150,
+            },
+        ],
+        conflicts_resolved=[],
+        watch_list=[
+            "Sample watch item — return rate trend on Pants",
+            "Sample watch item — RT-non-customer freq after pause",
+        ],
+        summary_email_body=(
+            "This whole email is a test. If you can read it, Resend is delivering "
+            "successfully to your inbox. Reply to this thread if anything looks off."
+        ),
+    )
+
+
 def run_weekly(
     *,
     dry_run: bool | None = None,
     bootstrap_only: bool = False,
     list_tabs: bool = False,
+    test_email: bool = False,
 ) -> int:
     config = get_config()
     effective_dry_run = config.dry_run if dry_run is None else dry_run
@@ -167,8 +231,17 @@ def run_weekly(
         f"[runner] starting weekly run "
         f"(dry_run={effective_dry_run}, "
         f"bootstrap_only={bootstrap_only}, "
-        f"list_tabs={list_tabs})"
+        f"list_tabs={list_tabs}, "
+        f"test_email={test_email})"
     )
+
+    if test_email:
+        # Verify the Resend/Omnisend wiring end-to-end without paying for an
+        # agent run. Sends one sample plan to RESEND_TO (or omnisend recipient)
+        # and exits. No Sheets connection needed.
+        print("[runner] test_email=true — sending sample digest, no agent runs")
+        _send_digest_email(config, _sample_action_plan())
+        return 0
 
     # Dry-run still needs sheets to READ data; bootstrap-only only writes
     # the tab schema. Either way we need a real sheets connection.
@@ -199,7 +272,7 @@ def run_weekly(
 
     coordinator = _run_coordinator(config, claude, sheets, dry_run=effective_dry_run)
     if coordinator and coordinator.last_plan and not effective_dry_run:
-        _send_digest_email(config, coordinator)
+        _send_digest_email(config, coordinator.last_plan)
 
     failures = [name for name, status in statuses.items() if status != "ok"]
     print(f"[runner] done. specialist failures: {failures or 'none'}")
@@ -223,12 +296,18 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Print every tab title in the spreadsheet and exit. Read-only, costs $0.",
     )
+    parser.add_argument(
+        "--test-email",
+        action="store_true",
+        help="Send one sample digest email and exit. Verifies Resend/Omnisend wiring. Costs $0.",
+    )
     args = parser.parse_args(argv)
     dry_run_override = True if args.dry_run else None
     return run_weekly(
         dry_run=dry_run_override,
         bootstrap_only=args.bootstrap_only,
         list_tabs=args.list_tabs,
+        test_email=args.test_email,
     )
 
 

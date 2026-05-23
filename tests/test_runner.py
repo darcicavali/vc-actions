@@ -340,3 +340,44 @@ def test_no_email_sent_when_neither_provider_is_configured(
     assert code == 0
     out = capsys.readouterr().out
     assert "no email provider configured" in out
+
+
+def test_test_email_sends_sample_and_exits_without_running_agents(
+    monkeypatch, base_config, capsys
+):
+    """test_email mode hits Resend with a sample plan and exits before any
+    agent runs. No Sheets connection needed."""
+    cfg = dc_replace(
+        base_config,
+        resend_api_key="rk_test",
+        resend_to="darci@example.com",
+    )
+    monkeypatch.setattr(runner_mod, "get_config", lambda: cfg)
+
+    sent: list[dict] = []
+
+    class FakeResend:
+        def __init__(self, api_key, **_kwargs):
+            self.api_key = api_key
+
+        def send_email(self, **kwargs):
+            sent.append(kwargs)
+            from scripts.resend_client import ResendResult
+            return ResendResult(status_code=200, body='{"id":"abc"}')
+
+    monkeypatch.setattr(runner_mod, "ResendClient", FakeResend)
+    # If the runner tried to build sheets/Claude, this would explode — proves
+    # the early-exit path is taken.
+    def boom(*a, **k):
+        raise AssertionError("test_email mode must not build clients")
+    monkeypatch.setattr(runner_mod, "_build_clients", boom)
+
+    code = run_weekly(test_email=True)
+    assert code == 0
+    assert len(sent) == 1
+    msg = sent[0]
+    assert msg["recipient"] == "darci@example.com"
+    assert "TEST EMAIL" in msg["text"]
+    assert "ONE THING THIS WEEK" in msg["text"]
+    out = capsys.readouterr().out
+    assert "test_email=true" in out
