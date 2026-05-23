@@ -80,6 +80,9 @@ def fake_config() -> Config:
         omnisend_api_key="",
         omnisend_digest_event="vc_weekly_plan",
         omnisend_digest_recipient="",
+        resend_api_key="",
+        resend_from="VC Actions <onboarding@resend.dev>",
+        resend_to="",
         test_mode=True,
         dry_run=False,
     )

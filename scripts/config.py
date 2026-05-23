@@ -32,6 +32,9 @@ class Config:
     omnisend_api_key: str
     omnisend_digest_event: str
     omnisend_digest_recipient: str
+    resend_api_key: str
+    resend_from: str
+    resend_to: str
     test_mode: bool
     dry_run: bool
 
@@ -65,6 +68,9 @@ def get_config() -> Config:
         omnisend_api_key=os.environ.get("OMNISEND_API_KEY", ""),
         omnisend_digest_event=os.environ.get("OMNISEND_DIGEST_EVENT", "vc_weekly_plan"),
         omnisend_digest_recipient=os.environ.get("OMNISEND_DIGEST_RECIPIENT", ""),
+        resend_api_key=os.environ.get("RESEND_API_KEY", ""),
+        resend_from=os.environ.get("RESEND_FROM", "VC Actions <onboarding@resend.dev>"),
+        resend_to=os.environ.get("RESEND_TO", ""),
         test_mode=_b("VC_ACTIONS_TEST_MODE", False),
         dry_run=_b("VC_ACTIONS_DRY_RUN", False),
     )
