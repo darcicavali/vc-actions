@@ -46,6 +46,10 @@ jobs:
           OMNISEND_API_KEY: ${{ secrets.OMNISEND_API_KEY }}
           OMNISEND_DIGEST_EVENT: ${{ vars.OMNISEND_DIGEST_EVENT || 'vc_weekly_plan' }}
           OMNISEND_DIGEST_RECIPIENT: ${{ vars.OMNISEND_DIGEST_RECIPIENT }}
+          # Resend (preferred; reused from ig-gbp-sync repo)
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM: ${{ vars.RESEND_FROM || 'VC Actions <onboarding@resend.dev>' }}
+          RESEND_TO: ${{ vars.RESEND_TO }}
           VC_ACTIONS_DRY_RUN: ${{ inputs.dry_run || 'false' }}
           # Seconds to sleep between specialist agents. 60s keeps us under
           # the Anthropic default-tier 30k input tokens/minute rate limit.

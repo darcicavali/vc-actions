@@ -76,6 +76,9 @@ def base_config() -> Config:
         omnisend_api_key="",
         omnisend_digest_event="vc_weekly_plan",
         omnisend_digest_recipient="",
+        resend_api_key="",
+        resend_from="VC Actions <onboarding@resend.dev>",
+        resend_to="",
         test_mode=True,
         dry_run=False,
     )
@@ -274,3 +277,66 @@ def test_list_tabs_prints_titles_without_calling_claude(
     # Headers from TAB_SCHEMAS land in the output (sheets fixture pre-seeds them).
     assert "Agent Memos" in out
     assert "Action Plan" in out
+
+
+def test_resend_takes_priority_over_omnisend(
+    monkeypatch, sheets, fake_spreadsheet, base_config, prompts_dir
+):
+    """When both Resend AND Omnisend are configured, Resend wins. The runner
+    sends one email via Resend and does not call Omnisend."""
+    cfg = dc_replace(
+        base_config,
+        resend_api_key="rk_test",
+        resend_to="darci@example.com",
+        omnisend_api_key="ok_test",
+        omnisend_digest_recipient="darci@example.com",
+    )
+    _patch_runner(monkeypatch, sheets, cfg, prompts_dir)
+    monkeypatch.setattr(runner_mod, "get_config", lambda: cfg)
+
+    sent: list[dict] = []
+
+    class FakeResend:
+        def __init__(self, api_key, **_kwargs):
+            self.api_key = api_key
+
+        def send_email(self, **kwargs):
+            sent.append(kwargs)
+            from scripts.resend_client import ResendResult
+            return ResendResult(status_code=200, body='{"id":"abc"}')
+
+    class FakeOmnisend:  # should never be constructed
+        def __init__(self, *a, **k):
+            raise AssertionError("Omnisend must not be called when Resend is set")
+
+    monkeypatch.setattr(runner_mod, "ResendClient", FakeResend)
+    monkeypatch.setattr(runner_mod, "OmnisendClient", FakeOmnisend)
+
+    code = run_weekly()
+    assert code == 0
+    assert len(sent) == 1
+    msg = sent[0]
+    assert msg["recipient"] == "darci@example.com"
+    assert msg["sender"].endswith("onboarding@resend.dev>")
+    assert msg["subject"].startswith("VC Weekly Plan")
+    assert "ONE THING THIS WEEK" in msg["text"]
+
+
+def test_no_email_sent_when_neither_provider_is_configured(
+    monkeypatch, sheets, fake_spreadsheet, base_config, prompts_dir, capsys
+):
+    """If both Resend and Omnisend are unset, the run still completes and
+    the action plan lands in the sheet — just no email."""
+    _patch_runner(monkeypatch, sheets, base_config, prompts_dir)
+
+    class Boom:
+        def __init__(self, *a, **k):
+            raise AssertionError("no email provider should be constructed")
+
+    monkeypatch.setattr(runner_mod, "ResendClient", Boom)
+    monkeypatch.setattr(runner_mod, "OmnisendClient", Boom)
+
+    code = run_weekly()
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "no email provider configured" in out

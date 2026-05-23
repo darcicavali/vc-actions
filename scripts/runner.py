@@ -34,7 +34,9 @@ from agents import (
 )
 from scripts.claude_client import ClaudeClient
 from scripts.config import Config, get_config
+from scripts.digest_email import format_digest
 from scripts.omnisend_client import OmnisendClient
+from scripts.resend_client import ResendClient
 from scripts.sheets_client import SheetsClient
 
 
@@ -112,25 +114,44 @@ def _run_coordinator(
 
 
 def _send_digest_email(config: Config, coordinator: GoalsAgent) -> None:
+    """Email Darci the action plan. Prefers Resend (simpler, already in use
+    on the ig-gbp-sync repo); falls back to Omnisend if Resend isn't set up.
+    If neither is configured, the run completes silently and the plan still
+    lands in the Action Plan tab.
+    """
     plan = coordinator.last_plan
     if plan is None:
         print("[digest] no plan to send")
         return
-    if not config.omnisend_api_key or not config.omnisend_digest_recipient:
-        print("[digest] Omnisend not configured — skipping email")
+
+    if config.resend_api_key and config.resend_to:
+        client = ResendClient(api_key=config.resend_api_key)
+        formatted = format_digest(plan)
+        result = client.send_email(
+            sender=config.resend_from,
+            recipient=config.resend_to,
+            subject=formatted.subject,
+            text=formatted.text,
+        )
+        print(f"[digest] resend status={result.status_code}")
         return
-    client = OmnisendClient(api_key=config.omnisend_api_key)
-    result = client.trigger_event(
-        event_name=config.omnisend_digest_event,
-        recipient_email=config.omnisend_digest_recipient,
-        properties={
-            "summary": plan.summary,
-            "one_thing_this_week": plan.one_thing_this_week,
-            "email_body": plan.summary_email_body,
-            "generated_at": plan.generated_at,
-        },
-    )
-    print(f"[digest] omnisend status={result.status_code}")
+
+    if config.omnisend_api_key and config.omnisend_digest_recipient:
+        client = OmnisendClient(api_key=config.omnisend_api_key)
+        result = client.trigger_event(
+            event_name=config.omnisend_digest_event,
+            recipient_email=config.omnisend_digest_recipient,
+            properties={
+                "summary": plan.summary,
+                "one_thing_this_week": plan.one_thing_this_week,
+                "email_body": plan.summary_email_body,
+                "generated_at": plan.generated_at,
+            },
+        )
+        print(f"[digest] omnisend status={result.status_code}")
+        return
+
+    print("[digest] no email provider configured — skipping email (plan is in the sheet)")
 
 
 def run_weekly(
