@@ -43,23 +43,30 @@ This file plus the latest entries in `BUILD_JOURNAL.md` (especially the `## Ops 
 
 ## Current state (update this section every session)
 
-**Last updated:** 2026-05-22
+**Last updated:** 2026-05-25
 
 ### Deployment status
 
 - GitHub Actions workflow exists: `.github/workflows/weekly_run.yml`.
-- Required secrets in GitHub: **ANTHROPIC_API_KEY, GOOGLE_SHEET_ID, GOOGLE_SERVICE_ACCOUNT_JSON** — added in a prior session.
-- Google Sheet shared with the service account email — done in a prior session.
+- Required secrets in GitHub: **ANTHROPIC_API_KEY, GOOGLE_SHEET_ID, GOOGLE_SERVICE_ACCOUNT_JSON, RESEND_API_KEY** — all in place.
+- Required variables: **RESEND_TO** (Darci's email) — in place.
+- Google Sheet shared with the service account email — done.
 - **First dry-run failures all fixed in main:** 200k-token overflow (`535221c`), rate-limit pacing (`535221c`), Windows UTF-8 (`4ea6c46`, `005ae2e`).
-- **Second dry-run (2026-05-19) ran green** end-to-end (~$0.26). New tabs did NOT auto-create because `ensure_all_tabs()` was gated behind `not dry_run`. Fixed in PR #5 (`bootstrap_only` mode + always-on `ensure_all_tabs`).
-- **Bootstrap_only run (2026-05-19) created all 10 new tabs** for $0: `BASELINE: AdsAgent`, `BASELINE: CustomerAgent`, `BASELINE: ProductAgent`, `BASELINE: ContentAgent`, `BASELINE: FunnelAgent`, `BASELINE: FinancialAgent`, `BASELINE: SEOAgent`, `BASELINE: GoalsAgent`, `Bot Actions`, `Bot Notes`.
+- **Bootstrap_only run created all 10 new tabs** for $0 (`BASELINE: <Agent>` × 8, `Bot Actions`, `Bot Notes`).
+- **First REAL production run (2026-05-22)** completed end-to-end after one fix: GoalsAgent's JSON was truncated at 2500-token output cap. Fixed in PR #8 by adding `preferred_max_tokens=8000` to GoalsAgent. All 7 specialists succeeded; coordinator now succeeds too on the re-run.
+- **Resend integration** shipped in PR #9: weekly digest email goes via Resend (`onboarding@resend.dev`), reusing the API key from the `ig-gbp-sync` repo. Omnisend stays as fallback. Plain-text format optimized for phone reading.
+- **`test_email` mode** shipped in PR #10: free-tier sample-email diagnostic, same pattern as `bootstrap_only` and `list_tabs`. Sends one realistic-looking sample digest, no agent runs, no Claude calls.
+- **Resend wiring verified 2026-05-25** — test email landed in Darci's inbox after correcting `RESEND_TO` from secret to variable.
 
 ### Merged PRs (latest first)
 
 | PR | Title | Status | Notes |
 |---|---|---|---|
-| #7 | `list_tabs` flag for free read-only sheet inspection | OPEN | Adds workflow input to print every tab title in Actions log. Not yet merged — Darci provided tab list manually. |
-| #6 | Fly.io deploy workflow for the Telegram chat bot | ✅ Merged 2026-05-19 | New `deploy_bot.yml` triggers `flyctl deploy --remote-only`. Not yet exercised — needs Fly account + secrets first. |
+| #10 | `test_email` mode for free Resend wiring verification | ✅ Merged 2026-05-25 | Workflow input that sends a sample digest and exits. Used to confirm Resend wiring before Monday auto-run. |
+| #9 | Send Monday digest via Resend | ✅ Merged 2026-05-25 | Reuses the API key from `ig-gbp-sync`. Omnisend stays as fallback. |
+| #8 | Fix GoalsAgent JSON truncation | ✅ Merged 2026-05-22 | `preferred_max_tokens=8000` on GoalsAgent. Coordinator now succeeds on full action plan. |
+| #7 | `list_tabs` flag for free read-only sheet inspection | OPEN | Adds workflow input to print every tab title. Darci provided tab list manually so not yet merged. |
+| #6 | Fly.io deploy workflow for the Telegram chat bot | ✅ Merged 2026-05-19 | New `deploy_bot.yml` triggers `flyctl deploy --remote-only`. Not yet exercised — Fly setup pending. |
 | #5 | `bootstrap_only` mode for free tab creation | ✅ Merged 2026-05-13 | Also moved `ensure_all_tabs()` out of the dry-run guard. |
 | #4 | Land cost cuts + baseline layer + chat bot | ✅ Merged 2026-05-13 | Cost, baseline, chat bot all on main. |
 
@@ -88,23 +95,30 @@ Darci's sheet has 53 tabs. Most agent `data_tabs` declarations match cleanly. Th
 
 Decision deferred until after baselines complete: either update agent `data_tabs` to match the actual sheet names, or extend the `vc-dashboard` upstream to produce these tabs.
 
+### Track A — baselines (Darci's manual workflow via Claude.ai Max)
+
+7 of 8 done (AdsAgent, CustomerAgent, ProductAgent, ContentAgent, FunnelAgent, FinancialAgent, SEOAgent). GoalsAgent baseline is intentionally deferred until 3-4 weekly runs accumulate — without run history there are no cross-agent patterns to synthesize.
+
 ### Track B — chat bot deployment
 
 - Code merged in PR #4. Tested. 34 chat-layer tests passing.
 - Fly.io deploy workflow merged in PR #6.
-- **Darci has not yet started Fly.io / Telegram setup.** Phase 1 (Telegram via @BotFather + @userinfobot) is the entry point when she's ready. Workflow assumes Fly account + secrets are already in place.
+- **Now active (2026-05-25):** Darci ready to do Phase 1 (Telegram via @BotFather + @userinfobot). Phase 2 is Fly.io account + secrets + API token. Phase 3 is clicking the Deploy Bot workflow.
 
 ### Track C — maintenance reminders (planned, not built)
 
-Darci asked for a way to be reminded of monthly baseline refreshes (and other recurring actions). Agreed approach: extend the existing Monday weekly email digest to include a "Maintenance" section that reads `last_updated` from every BASELINE tab and flags any older than 30 days OR never filled. To be built after 2-3 baselines are in so the logic has real data to test against.
+Darci asked for a way to be reminded of monthly baseline refreshes (and other recurring actions). Agreed approach: extend the existing Monday weekly email digest to include a "Maintenance" section that reads `last_updated` from every BASELINE tab and flags any older than 30 days OR never filled. Defer until ~Monday of June so the real cron pattern is established first.
 
 ### Next actions, in order
 
-1. **Continue baselines (Track A):** ProductAgent next, then ContentAgent / FunnelAgent / FinancialAgent / SEOAgent / GoalsAgent.
-2. **Build maintenance reminders (Track C)** after 3-4 baselines are filled.
-3. **Start Track B Phase 1** when Darci is ready — Telegram bot creation in @BotFather, then Fly.io setup.
-4. **First real production run** (not dry-run) after enough baselines are in to produce a useful action plan. Likely after ProductAgent + 2 more.
-5. **Schema gap cleanup** once everything else is working.
+1. **Track B Phase 1 — Telegram setup** (in-progress). Darci creates bot via @BotFather, gets her user ID from @userinfobot.
+2. **Track B Phase 2 — Fly.io account + secrets + API token.**
+3. **Track B Phase 3 — trigger the Deploy Bot workflow.**
+4. **Monday 2026-06-01 auto-run** — first scheduled cron, action plan + email delivered automatically.
+5. **Build Track C (maintenance reminders)** after Monday run.
+6. **GoalsAgent baseline** after 3-4 weekly runs accumulate (~end of June).
+7. **Schema gap cleanup** (Returns / COGS / Margin Trends / All Products / GBP / Search Console / Product Meta) — non-blocking, defer until clearly needed.
+8. **SEO Phase 2** (Search Console / GBP / website-fetch tools) — only if Darci asks for it after seeing the SEO baseline gaps in practice.
 
 ### Open requirement — two-way communication (NEW, not in v4/v5 spec)
 

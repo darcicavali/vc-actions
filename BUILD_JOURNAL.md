@@ -562,3 +562,121 @@ via her Claude.ai Max subscription.
   inventing — that honesty makes the weekly agent more trustworthy.
 - **Darci's new rule (action items at the bottom of every reply)** is
   honored every message now. Codified in CLAUDE.md.
+
+
+---
+
+## Ops — 2026-05-25 — Real production run, GoalsAgent fix, Resend integration
+
+### Session goal
+Get the system to the point where Monday's auto-run produces a usable
+action plan AND delivers it to Darci's inbox without manual intervention.
+
+### What was attempted
+- ProductAgent, ContentAgent, FunnelAgent, FinancialAgent, SEOAgent baselines
+  all filled via Claude.ai Max (7 of 8 specialist baselines now in the
+  sheet; GoalsAgent intentionally deferred until run history accumulates).
+- Goal Tracker seeded with one row capturing the $360k stretch goal,
+  current YTD ($67.8k), required pace ($124.6k by week 21), and the
+  $-56.8k gap — surfaces "behind pace" to GoalsAgent on every run.
+- First REAL production run (2026-05-22) triggered. All 7 specialists
+  succeeded; GoalsAgent failed parsing its own response — JSON cut off
+  mid-string at the 2500-token output cap. Fixed in PR #8 by adding
+  `preferred_max_tokens=8000` to GoalsAgent + per-call max_tokens
+  override on ClaudeClient.complete().
+- Replaced Omnisend with Resend for the digest email (PR #9). Reuses the
+  API key Darci already has on her `ig-gbp-sync` repo. Omnisend stays as
+  a silent fallback so if Resend ever breaks we don't lose email
+  delivery entirely. Plain-text formatter (digest_email.py) optimized
+  for phone reading: ONE THING THIS WEEK on top, then SUMMARY,
+  PACE STATUS, THIS WEEK'S ACTIONS, WATCH NEXT WEEK.
+- Built `test_email` mode (PR #10): workflow_dispatch input that sends
+  a sample digest and exits. No agent runs, no Claude calls, no sheet
+  writes. Mirrors the bootstrap_only / list_tabs diagnostic pattern.
+  Used to verify Resend wiring before Monday's auto-run.
+- First test_email run logged "no email provider configured" despite
+  Darci having added RESEND_API_KEY and RESEND_TO. Root cause: she
+  added RESEND_TO under Secrets, but the workflow reads it via
+  `${{ vars.RESEND_TO }}` — secrets and variables are separate
+  namespaces in GitHub Actions. After moving RESEND_TO from Secrets to
+  Variables, the test email arrived in her inbox.
+
+### What worked
+- The first real run validated everything below GoalsAgent end-to-end:
+  baseline reads, prompt caching, Haiku routing for Content/SEO, per-agent
+  60s pacing, memo writes, runtime log writes. The full pipeline is
+  durable.
+- Resend was the right call — 20-line client vs Omnisend's automation +
+  template + event-listener dance. Reusing the ig-gbp-sync account means
+  Darci has one place to manage email infra.
+- The test_email diagnostic caught the secret-vs-variable mismatch before
+  Monday morning. Without it, Monday's cron would have run successfully
+  and the email would have silently failed; Darci would have woken up
+  to no notification and assumed the system was broken.
+- The "$0 diagnostic workflow input" pattern is paying off: bootstrap_only,
+  list_tabs, test_email — three different free verifications, all reachable
+  by one click from the Actions tab.
+
+### What failed / had to retry
+- GoalsAgent JSON truncation was the most predictable bug we could have
+  caught in advance — output limits matter when the schema is large.
+  Coordinator output is structurally bigger than specialist memos and
+  should have had its own max_tokens override from day one.
+- I initially routed Darci to add RESEND_TO as a variable but my
+  instructions weren't explicit enough about the secret/variable
+  distinction. She landed on the secrets page (which is the same
+  sidebar entry) and added it there. Lesson: when telling Darci to
+  add anything in GitHub, specify BOTH the page AND the tab/section.
+
+### Decisions made
+- **Resend over Omnisend for the digest email.** Marketing-platform
+  overhead isn't justified for a single recipient. Omnisend code stays
+  but is now a fallback; if Resend env vars are unset, the runner uses
+  Omnisend if its env vars are set, else skips email silently.
+- **GoalsAgent gets preferred_max_tokens=8000.** ~3x the default. Safe
+  headroom for the full plan without inflating per-minute token usage.
+  Future agents whose outputs grow can follow the same pattern.
+- **test_email mode is a first-class workflow input.** Worth the small
+  refactor to _send_digest_email taking a plan directly so test mode
+  can call it without spinning up GoalsAgent.
+- **GoalsAgent baseline deferred.** It needs 3-4 weeks of real run
+  history to find cross-agent patterns. Don't force it now.
+- **Schema gap cleanup deferred.** Returns/COGS/Margin Trends/GBP/Search
+  Console/Product Meta tabs don't exist in Darci's sheet. Agents handle
+  missing tabs gracefully. Defer until we know which gaps actually hurt.
+
+### Open questions
+- Will Monday 2026-06-01 auto-run actually deliver a useful action
+  plan? Real test of the whole system end-to-end on the cron schedule.
+- Track B Phase 1 (Telegram bot creation) — should be straightforward
+  but Darci hasn't done @BotFather flow before. Worth being explicit
+  about each tap in the Telegram app.
+- Should I quietly fix the workflow to read RESEND_TO from either
+  secret OR variable? Darci said "no need to change that now" — defer
+  unless someone else hits the same trap.
+
+### Learnings for future sessions
+- **GitHub Secrets ≠ GitHub Variables.** Two separate namespaces under
+  the same Settings → Secrets and variables → Actions page. The
+  workflow reads `${{ secrets.X }}` for secrets and `${{ vars.X }}` for
+  variables. When telling Darci to add anything in GitHub, always
+  specify which TAB on that page (Secrets vs Variables).
+- **The $0 diagnostic mode pattern is gold.** Every operationally-relevant
+  thing should have a "just verify this works" workflow input — costs
+  nothing, catches bugs early, doesn't require running the full pipeline.
+- **Coordinator output is structurally bigger than specialist output.**
+  Anything that aggregates across N agents will produce N× more JSON.
+  Set max_tokens accordingly from the start.
+- **Calibrated confidence (high/medium/low) in baselines was the right
+  call.** All 7 specialist baselines flagged data gaps honestly via
+  confidence=low rather than inventing — that honesty is what makes the
+  weekly agent trustworthy.
+- **Action items at the bottom of every chat reply (Darci's standing
+  rule)** is being honored consistently across this whole session.
+
+### Next step
+1. Walk Darci through Track B Phase 1 (Telegram bot via @BotFather +
+   user ID via @userinfobot — all in the Telegram app, no terminal).
+2. Then Phase 2 (Fly.io account + secrets + API token).
+3. Then Phase 3 (click Deploy Bot workflow).
+4. Monday 2026-06-01: first scheduled auto-run.
