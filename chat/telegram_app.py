@@ -47,7 +47,7 @@ from chat.brain import (  # noqa: E402
     TurnEnded,
 )
 from chat.memory import ConversationStore  # noqa: E402
-from scripts.config import load_config  # noqa: E402
+from scripts.config import get_config  # noqa: E402
 from scripts.sheets_client import SheetsClient  # noqa: E402
 
 
@@ -177,7 +177,7 @@ def build_application() -> Application:
     if not token:
         raise RuntimeError("TELEGRAM_BOT_TOKEN env var is required")
 
-    config = load_config()
+    config = get_config()
     anthropic_client = anthropic.Anthropic(api_key=config.anthropic_api_key)
     sheets = SheetsClient.from_config(config)
     store = ConversationStore()
