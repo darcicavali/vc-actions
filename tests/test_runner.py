@@ -188,7 +188,7 @@ def test_run_weekly_happy_path(monkeypatch, sheets, fake_spreadsheet, base_confi
     _patch_runner(monkeypatch, sheets, base_config, prompts_dir)
     code = run_weekly()
     assert code == 0
-    # 7 specialist memos + 1 coordinator memo.
+    # 6 specialist memos + 1 coordinator memo (FunnelAgent retired 2026-05-29).
     memo_rows = fake_spreadsheet.worksheet("Agent Memos").get_all_records()
     agents_seen = {r["agent"] for r in memo_rows}
     assert {
@@ -196,11 +196,11 @@ def test_run_weekly_happy_path(monkeypatch, sheets, fake_spreadsheet, base_confi
         "CustomerAgent",
         "ProductAgent",
         "ContentAgent",
-        "FunnelAgent",
         "FinancialAgent",
         "SEOAgent",
         "GoalsAgent",
     }.issubset(agents_seen)
+    assert "FunnelAgent" not in agents_seen
     plan_rows = fake_spreadsheet.worksheet("Action Plan").get_all_records()
     assert len(plan_rows) == 1
 

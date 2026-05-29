@@ -793,3 +793,168 @@ responding to Darci's messages. From "code merged but not running" to
 - **Telegram allows exactly ONE long-poller per bot token.** This
   invariant means horizontal scaling is structurally impossible for
   this transport. Webhook-based bots can scale; long-polling cannot.
+
+
+---
+
+## Ops — 2026-05-29 — Agent architecture rethink (proposed, not yet built)
+
+### Session goal
+Darci asked to step back and rethink whether the 8-agent lineup is right
+for her business — simplify, reduce noise, broaden where it matters. This
+entry records the PROPOSED redesign. No agent code changed yet; awaiting
+Darci's confirmation on build order.
+
+### Darci's guidance (verbatim intent)
+- Ads: fundamental, keep as an AI agent.
+- Customer: put on hold for now; OR replace with an Email agent that
+  integrates the email channel. She wants email capability that's missing
+  today.
+- Product: keep.
+- Content: keep but broaden — should research and bring OUTSIDE ideas
+  (trends, competitor content) relevant to the business.
+- Funnel: dissolve — integrate into Ads and/or SEO.
+- SEO: important, broaden a lot — think like a real modern SEO: inspect
+  own website, competitor websites, account for how AI is influencing
+  search (AI Overviews / LLM search / AEO), use real tools.
+- Financial: keep but REFRAME to reporting/tracking only — AI lacks the
+  full expense picture, so no solvency/break-even/cost advice. Report
+  sales, orders, return rate, margin, AOV, new-vs-returning, and track
+  progress WoW/MoM/QoQ/YoY.
+- WhatsApp: not relevant for an AI agent — Vanessa handles it relationally.
+
+### Proposed lineup — 6 specialists + 1 coordinator (was 7+1)
+1. **Ads** — paid Meta + the PAID funnel (absorbs paid side of Funnel).
+2. **Email / Lifecycle** (NEW) — customers + retention made actionable
+   through the email channel. Replaces standalone CustomerAgent.
+3. **Product** — buying/merchandising/returns. Largely unchanged.
+4. **Content** — organic social + brand content, BROADENED with outside
+   trend/competitor research. Needs web tools.
+5. **Search / Discovery** — SEO + local + AI-search visibility +
+   website/competitor inspection. Absorbs ORGANIC side of Funnel. Needs
+   web tools.
+6. **Business Tracker** — reframed FinancialAgent. Reporting only, not
+   prescriptive. Pairs with the trend charts already built into the email.
+7. **Coordinator (GoalsAgent)** — unchanged role: one prioritized plan.
+
+Dissolved: FunnelAgent. Dropped: WhatsApp (never built). On hold /
+absorbed: standalone CustomerAgent → Email/Lifecycle.
+
+### Why this reduces noise (not just box count)
+- Removes the traffic/conversion overlap between Funnel, Ads, SEO.
+- Converts analysis into action (Customer-analysis → Email-action).
+- Reporting-only Tracker eliminates the overreach pattern (the "$360k is
+  doomed / BAN this vendor on 3 weeks of data" failure mode).
+
+### Risks / angles flagged to Darci
+- Content + Search broadening needs NEW capability: web search/fetch +
+  website inspection tools. Real engineering; changes cost/risk profile;
+  research agents can invent competitor "facts" without citation discipline.
+- Research-heavy agents likely better as light-weekly + deep-monthly, to
+  control cost and repetition.
+- Email/Lifecycle agent needs Omnisend campaign/flow data wired into the
+  sheet first — not flowing today.
+- AEO (AI-search visibility) is the newest, least-proven area — treat as
+  an experiment inside Search, not a core promise.
+
+### Proposed build order
+- Phase 1 (cheap, prompt/config only): retire Funnel, reframe Financial →
+  Tracker, put CustomerAgent on hold. Immediate noise + cost reduction.
+- Phase 2: Email/Lifecycle agent (wire Omnisend data, then build).
+- Phase 3: web tools + broaden Content & Search; run research monthly.
+
+### Decisions made
+- None final yet — this is a proposal. Existing 7-specialist system stays
+  live and unchanged until Darci picks a phase to start.
+
+### Open questions for Darci
+- Confirm the 6-specialist target lineup.
+- Confirm build order (recommend Phase 1 first — fast, safe, cheaper).
+- For Email agent: is she willing to let it read Omnisend data, and does
+  she want it to also DRAFT campaigns or only recommend strategy/segments?
+- For research agents: weekly-light + monthly-deep cadence OK?
+
+### Next step
+Await Darci's pick. If she greenlights Phase 1, it's a low-risk
+prompt/config change set (retire Funnel from the runner rotation, reframe
+the financial role prompt, drop CustomerAgent from rotation) with tests.
+
+### Learnings for future sessions
+- Darci thinks in terms of business levers + actionability, not agent
+  taxonomy. Frame proposals as "what move does this produce" not "what
+  does this analyze."
+- The coordinator collapsing N agents into one plan is what keeps agent
+  count from becoming reader-facing noise — but overlap BETWEEN agents
+  still creates redundant reasoning and conflict. Non-overlapping
+  mandates matter even with a coordinator.
+- Reporting-only framing (Tracker) is the structural fix for the
+  overreach failure mode, complementing the decision-discipline rules
+  added to the coordinator in PR #13.
+
+
+---
+
+## Ops — 2026-05-29 (later) — Phase 1 of redesign shipped + key decisions locked
+
+### Session goal
+Execute Phase 1 of the 6-specialist redesign and lock the design decisions
+Darci made about research, Omnisend, and the Email agent.
+
+### Decisions locked (Darci)
+- **Research = subscription-not-API pattern.** Broadened Content + Search
+  agents will NOT use paid web tools. Instead, each emits a research prompt
+  pack; Darci runs it in Claude Pro / ChatGPT deep research (flat-rate);
+  pastes the report back into a sheet tab in a fixed format; the agent reads
+  it. Same trick as baselines. Kills API cost AND hallucination risk.
+  Cadence: light weekly + deep monthly. (Phase 3.)
+- **Omnisend = Option A (manual paste via her existing Claude.ai MCP).**
+  Her Claude.ai↔Omnisend MCP connection can't be reached by our GitHub
+  Actions / Fly runtimes (different processes). Cleanest fit: she pulls the
+  Omnisend report in Claude.ai monthly and pastes it into a sheet tab; the
+  Email agent reads it from the sheet like every other agent. (Phase 2.)
+  Upgrade to Omnisend REST API or vc-dashboard pipe later if paste gets old.
+- **Email agent DRAFTS campaigns for her review** (not just strategy).
+- **6-specialist lineup confirmed.** Start with Phase 1.
+
+### What was shipped (PR #14, Phase 1 — prompt/config only)
+- FunnelAgent retired from rotation (runner.SPECIALIST_CLASSES +
+  goals_agent.SPECIALIST_NAMES). Class + funnel.md kept for easy revival.
+- Funnel data folded: AdsAgent gained Weekly Summary + Funnel by Source
+  (paid funnel); SEOAgent gained Device Breakdown (organic/site funnel,
+  already had Landing Pages). ads.md + seo.md got "funnel ownership"
+  sections with flag-don't-double-own guidance.
+- FinancialAgent reframed → "Business Tracker": reporting-only role prompt
+  (sales/orders/returns/margin/AOV/new-vs-returning + WoW/MoM/QoQ/YoY
+  trends). No cost/solvency/veto. Internal name kept as FinancialAgent so
+  BASELINE: FinancialAgent + memo history survive.
+- CustomerAgent kept in rotation until Email agent replaces it (Phase 2) —
+  no retention-coverage gap.
+- Tests: 124 passing (dropped 2 parametrized FunnelAgent cases).
+
+### Why reporting-only Tracker matters
+It's the structural fix for the overreach failure mode (PR #13 added
+coordinator decision-discipline rules; this removes the source — an agent
+that was literally told to "veto" and give solvency calls without expense
+data). Pairs with the email trend charts: Tracker writes the words over
+the charts.
+
+### Open questions / next
+- Phase 2 (Email/Lifecycle agent): needs Omnisend performance pasted into a
+  new sheet tab (define the tab schema), then build the agent. It absorbs
+  CustomerAgent and drafts campaigns for review.
+- Phase 3 (broaden Content + Search): build the research-prompt-pack
+  workflow (agent emits prompt → Darci runs in Claude Pro/ChatGPT → pastes
+  report into a tab → agent reads). Light weekly + deep monthly.
+- Eventually: full rename FinancialAgent → BusinessTracker with a baseline
+  tab migration, if Darci wants the label clean everywhere.
+
+### Learnings for future sessions
+- The "expensive work happens in Darci's flat-rate subscription, results
+  land in a sheet tab, cheap API agents read the tab" pattern now covers
+  THREE things: baselines, research (Phase 3), and Omnisend data (Phase 2).
+  This is the core cost-control architecture — lean on it for anything
+  expensive or hallucination-prone.
+- Retiring an agent: remove from SPECIALIST_CLASSES + SPECIALIST_NAMES, fold
+  its data_tabs into the absorbing agents, add prompt guidance for the new
+  ownership, update test_runner expected-agents + test_specialists list.
+  Keep the class/prompt file for revival.

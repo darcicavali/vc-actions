@@ -19,7 +19,6 @@ from agents import (
     ContentAgent,
     CustomerAgent,
     FinancialAgent,
-    FunnelAgent,
     ProductAgent,
     SEOAgent,
 )
@@ -27,12 +26,12 @@ from scripts.claude_client import ClaudeResponse
 from scripts.config import Config
 
 
+# FunnelAgent retired 2026-05-29 (Phase 1 redesign) — no longer in rotation.
 ALL_SPECIALISTS = [
     AdsAgent,
     CustomerAgent,
     ProductAgent,
     ContentAgent,
-    FunnelAgent,
     FinancialAgent,
     SEOAgent,
 ]

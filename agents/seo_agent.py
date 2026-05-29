@@ -23,4 +23,7 @@ class SEOAgent(BaseAgent):
         "GBP Performance",
         "Search Console Queries",
         "Product Meta",
+        # Organic/site-funnel signals, absorbed from the retired FunnelAgent
+        # (2026-05-29): how organic landings engage and convert, by device.
+        "Device Breakdown",
     ]
