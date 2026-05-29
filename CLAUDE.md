@@ -30,10 +30,14 @@ This file plus the latest entries in `BUILD_JOURNAL.md` (especially the `## Ops 
 
 ## What we're building
 
-`vc-actions` — 7 specialist Claude agents + 1 coordinator. Every Monday 8 AM CT, they read weekly data from the `vc-dashboard` Google Sheet and produce one unified action plan, emailed to Darci via Omnisend.
+`vc-actions` — currently 7 specialist Claude agents + 1 coordinator. Every Monday 8 AM CT, they read weekly data from the `vc-dashboard` Google Sheet and produce one unified action plan, emailed to Darci via Resend.
+
+> **⚠️ Architecture redesign proposed 2026-05-29 (see latest BUILD_JOURNAL ops entry).** Darci wants to simplify to **6 specialists + coordinator** with sharper, non-overlapping mandates:
+> 1. **Ads** (+ absorbs paid funnel) · 2. **Email/Lifecycle** (NEW — replaces standalone CustomerAgent) · 3. **Product** · 4. **Content** (broadened: outside trend/competitor research) · 5. **Search/Discovery** (broadened: SEO + local + AI-search + website/competitor inspection, absorbs organic funnel) · 6. **Business Tracker** (reframed FinancialAgent — reporting only, no cost advice) · + **Coordinator**.
+> Dissolved: FunnelAgent. Dropped: WhatsApp. Build order: Phase 1 = retire Funnel + reframe Financial→Tracker + hold CustomerAgent (prompt/config only); Phase 2 = Email/Lifecycle agent (needs Omnisend data wired); Phase 3 = web tools + broaden Content & Search. **Not yet built — awaiting Darci's go-ahead on which phase to start.**
 
 **Specs (source of truth, do not modify without Darci):**
-- `VC_ACTIONS_MULTIAGENT_FRAMEWORK_v4.md` — architecture
+- `VC_ACTIONS_MULTIAGENT_FRAMEWORK_v4.md` — architecture (predates the redesign above)
 - `VC_ACTIONS_MEMORY_AND_JOURNAL_v5.md` — memory layers + journaling
 - `BUILD_JOURNAL.md` — what happened, session by session
 
