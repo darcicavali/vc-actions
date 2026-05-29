@@ -182,6 +182,96 @@ def _pace_chart_url(pace: dict | None) -> str | None:
     return f"https://quickchart.io/chart?w=520&h=180&bkg=white&c={encoded}"
 
 
+def _parse_num(value) -> float | None:
+    """Strip $, %, commas, whitespace and parse a float. None on failure."""
+    if value is None:
+        return None
+    s = str(value).strip().replace("$", "").replace(",", "").replace("%", "").strip()
+    if not s:
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def _week_label(row: dict) -> str:
+    """Short MM/DD label from a Weekly Summary 'Week Start' cell."""
+    raw = str(row.get("Week Start", "")).strip()
+    # Accept YYYY-MM-DD or similar; fall back to the raw string.
+    if len(raw) >= 10 and raw[4] == "-" and raw[7] == "-":
+        return raw[5:10].replace("-", "/")
+    return raw[:5]
+
+
+def weekly_trends(rows: list[dict], last_n: int = 12) -> list[tuple[str, list, list]]:
+    """From Weekly Summary rows, compute trend series for the email charts.
+
+    Returns a list of (title, labels, values). All metrics are computed from
+    raw columns (not the unreliable rounded Margin % column):
+      - Net Sales (weekly revenue)
+      - Return rate % = Returns / Gross Sales * 100
+      - Margin %      = Gross Profit / Net Sales * 100
+    A series is skipped if fewer than 2 valid points exist.
+    """
+    if not rows:
+        return []
+    recent = rows[-last_n:]
+    labels = [_week_label(r) for r in recent]
+
+    def series(fn) -> list:
+        return [fn(r) for r in recent]
+
+    def ret_rate(r):
+        gross = _parse_num(r.get("Gross Sales"))
+        returns = _parse_num(r.get("Returns"))
+        if gross and gross > 0 and returns is not None:
+            return round(returns / gross * 100, 1)
+        return None
+
+    def margin(r):
+        net = _parse_num(r.get("Net Sales"))
+        gp = _parse_num(r.get("Gross Profit"))
+        if net and net > 0 and gp is not None:
+            return round(gp / net * 100, 1)
+        return None
+
+    candidates = [
+        ("Weekly net sales ($)", series(lambda r: _parse_num(r.get("Net Sales")))),
+        ("Return rate (%)", series(ret_rate)),
+        ("Gross margin (%)", series(margin)),
+    ]
+    out = []
+    for title, vals in candidates:
+        if sum(1 for v in vals if v is not None) >= 2:
+            out.append((title, labels, vals))
+    return out
+
+
+def _trend_chart_url(title: str, labels: list, values: list, color: str) -> str:
+    config = {
+        "type": "line",
+        "data": {
+            "labels": labels,
+            "datasets": [{
+                "label": title,
+                "data": values,
+                "borderColor": color,
+                "backgroundColor": color,
+                "fill": False,
+                "spanGaps": True,
+                "pointRadius": 2,
+            }],
+        },
+        "options": {
+            "legend": {"display": False},
+            "title": {"display": True, "text": title},
+        },
+    }
+    encoded = urllib.parse.quote(json.dumps(config))
+    return f"https://quickchart.io/chart?w=520&h=200&bkg=white&c={encoded}"
+
+
 # ---------- html ----------
 
 def _esc(s) -> str:
@@ -288,7 +378,25 @@ def _bullets_html(items, kind: str = "plain") -> str:
     return f'<ul style="padding-left:20px;margin:4px 0;">{"".join(lis)}</ul>' if lis else ""
 
 
-def _build_html(plan: ActionPlan) -> str:
+_TREND_COLORS = ["#0969da", "#d1242f", "#9a6700"]
+
+
+def _trends_html(weekly_rows: list[dict] | None) -> str:
+    if not weekly_rows:
+        return ""
+    imgs = []
+    for i, (title, labels, values) in enumerate(weekly_trends(weekly_rows)):
+        url = _trend_chart_url(title, labels, values, _TREND_COLORS[i % len(_TREND_COLORS)])
+        imgs.append(
+            f'<div style="margin:10px 0;"><img src="{url}" width="520" '
+            f'alt="{_esc(title)}" style="max-width:100%;border-radius:8px;"/></div>'
+        )
+    if not imgs:
+        return ""
+    return _section_html("Trends (last 12 weeks)", "".join(imgs))
+
+
+def _build_html(plan: ActionPlan, weekly_rows: list[dict] | None = None) -> str:
     chart_url = _pace_chart_url(plan.pace_status)
     chart_html = (
         f'<div style="margin:10px 0;"><img src="{chart_url}" width="520" '
@@ -313,6 +421,7 @@ def _build_html(plan: ActionPlan) -> str:
         _section_html("This week's actions", _actions_html(plan.sequenced_actions)),
         _section_html("Conflicts resolved", _bullets_html(conflicts, "conflict")),
         _section_html("Watch next week", _bullets_html(plan.watch_list)),
+        _trends_html(weekly_rows),
     ])
     return (
         '<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;'
@@ -324,7 +433,16 @@ def _build_html(plan: ActionPlan) -> str:
     )
 
 
-def format_digest(plan: ActionPlan, *, week_label: str | None = None) -> FormattedEmail:
+def format_digest(
+    plan: ActionPlan,
+    *,
+    week_label: str | None = None,
+    weekly_rows: list[dict] | None = None,
+) -> FormattedEmail:
     label = week_label or plan.generated_at[:10]
     subject = f"{SUBJECT_PREFIX} — {label}"
-    return FormattedEmail(subject=subject, text=_build_text(plan), html=_build_html(plan))
+    return FormattedEmail(
+        subject=subject,
+        text=_build_text(plan),
+        html=_build_html(plan, weekly_rows=weekly_rows),
+    )

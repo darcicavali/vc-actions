@@ -113,19 +113,30 @@ def _run_coordinator(
         return None
 
 
-def _send_digest_email(config: Config, plan: "GoalsAgent.last_plan | None") -> None:
+def _send_digest_email(config: Config, plan: "GoalsAgent.last_plan | None", sheets=None) -> None:
     """Email Darci the action plan. Prefers Resend (simpler, already in use
     on the ig-gbp-sync repo); falls back to Omnisend if Resend isn't set up.
     If neither is configured, the run completes silently and the plan still
     lands in the Action Plan tab.
+
+    `sheets` (optional) lets the HTML email embed 12-week trend charts read
+    from the Weekly Summary tab. Best-effort — a read failure just omits the
+    charts, never blocks the email.
     """
     if plan is None:
         print("[digest] no plan to send")
         return
 
+    weekly_rows = None
+    if sheets is not None:
+        try:
+            weekly_rows = sheets.read_tab("Weekly Summary")
+        except Exception as e:
+            print(f"[digest] could not read Weekly Summary for charts: {e}")
+
     if config.resend_api_key and config.resend_to:
         client = ResendClient(api_key=config.resend_api_key)
-        formatted = format_digest(plan)
+        formatted = format_digest(plan, weekly_rows=weekly_rows)
         result = client.send_email(
             sender=config.resend_from,
             recipient=config.resend_to,
@@ -273,7 +284,7 @@ def run_weekly(
 
     coordinator = _run_coordinator(config, claude, sheets, dry_run=effective_dry_run)
     if coordinator and coordinator.last_plan and not effective_dry_run:
-        _send_digest_email(config, coordinator.last_plan)
+        _send_digest_email(config, coordinator.last_plan, sheets=sheets)
 
     failures = [name for name, status in statuses.items() if status != "ok"]
     print(f"[runner] done. specialist failures: {failures or 'none'}")

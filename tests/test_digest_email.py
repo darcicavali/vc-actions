@@ -146,3 +146,58 @@ def test_format_digest_actions_without_optional_fields():
     )
     out = format_digest(plan)
     assert "1. Just an action with no day or agent" in out.text
+
+
+def _weekly_rows():
+    # Mimics real Weekly Summary cells: strings with $, %, commas.
+    return [
+        {"Week Start": "2026-03-02", "Gross Sales": "$10,000", "Returns": "$1,200",
+         "Net Sales": "$8,800", "Gross Profit": "$4,300"},
+        {"Week Start": "2026-03-09", "Gross Sales": "$12,500", "Returns": "$1,000",
+         "Net Sales": "$11,500", "Gross Profit": "$6,000"},
+        {"Week Start": "2026-03-16", "Gross Sales": "$9,000", "Returns": "$1,800",
+         "Net Sales": "$7,200", "Gross Profit": "$3,200"},
+    ]
+
+
+def test_weekly_trends_computes_series_from_raw_columns():
+    from scripts.digest_email import weekly_trends
+    series = weekly_trends(_weekly_rows())
+    titles = [s[0] for s in series]
+    assert "Weekly net sales ($)" in titles
+    assert "Return rate (%)" in titles
+    assert "Gross margin (%)" in titles
+    # Return rate for row 1 = 1200/10000*100 = 12.0
+    ret = next(s for s in series if s[0] == "Return rate (%)")
+    assert ret[2][0] == 12.0
+    # Margin for row 1 = 4300/8800*100 = 48.9
+    margin = next(s for s in series if s[0] == "Gross margin (%)")
+    assert margin[2][0] == 48.9
+    # labels are MM/DD
+    assert ret[1][0] == "03/02"
+
+
+def test_weekly_trends_skips_series_with_too_few_points():
+    from scripts.digest_email import weekly_trends
+    # Only one row → every series has <2 points → nothing returned.
+    assert weekly_trends(_weekly_rows()[:1]) == []
+
+
+def test_weekly_trends_empty_input():
+    from scripts.digest_email import weekly_trends
+    assert weekly_trends([]) == []
+    assert weekly_trends(None) == []
+
+
+def test_format_digest_embeds_trend_charts_when_weekly_rows_given():
+    plan = _plan()
+    out = format_digest(plan, weekly_rows=_weekly_rows())
+    assert "Trends (last 12 weeks)" in out.html
+    # three QuickChart line images (pace bar + 3 trends = 4 total chart imgs)
+    assert out.html.count("quickchart.io/chart") >= 4
+
+
+def test_format_digest_no_trend_section_without_weekly_rows():
+    plan = _plan()
+    out = format_digest(plan)
+    assert "Trends (last 12 weeks)" not in out.html
