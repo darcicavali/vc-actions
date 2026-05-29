@@ -958,3 +958,38 @@ the charts.
   its data_tabs into the absorbing agents, add prompt guidance for the new
   ownership, update test_runner expected-agents + test_specialists list.
   Keep the class/prompt file for revival.
+
+
+---
+
+## Ops — 2026-05-29 (note) — Omnisend = Option C; no sheet renames needed
+
+### Decisions
+- **Omnisend data = Option C (pipe via vc-dashboard repo).** Darci chose C
+  over A (manual paste) and B (REST API in our runner) — least ongoing
+  work for her, and the pipeline brings the full dataset. NOTE: C is a dev
+  task in the SEPARATE vc-dashboard repo, not this one. When Phase 2 starts,
+  define the exact Omnisend fields the Email agent needs (campaign sends,
+  opens, clicks, revenue per flow/campaign, segment sizes) — that spec
+  drives the vc-dashboard change.
+- **Drafting emails does NOT require the Omnisend API.** The Email agent
+  drafts copy + segment as TEXT in its memo for Darci's review; she places
+  it in Omnisend herself. The API (B) would only be needed to
+  create/send campaigns programmatically — explicitly not wanted (review
+  first). So reading=C, drafting=plain LLM output, sending=manual.
+
+### Sheet/name status after Phase 1
+- NO tab renames needed. FinancialAgent kept its internal name (role
+  relabeled to "Business Tracker" in the prompt only), so
+  BASELINE: FinancialAgent still works untouched.
+- BASELINE: FunnelAgent is now DORMANT (agent retired). Darci's funnel
+  baseline content is preserved but unread. Recommended (not yet done):
+  migrate its rows into BASELINE: AdsAgent (paid funnel) and
+  BASELINE: SEOAgent (organic/site funnel). Judgment call + needs sheet
+  access, so left for Darci or a guided copy. FunnelAgent kept in
+  BASELINE_AGENTS list for revival; harmless (ensure_all_tabs is idempotent).
+
+### Next step
+- Phase 2 kickoff: define Omnisend field spec for vc-dashboard, design the
+  `Omnisend Performance` tab schema, then build the Email/Lifecycle agent
+  (absorbs CustomerAgent, drafts campaigns for review).
