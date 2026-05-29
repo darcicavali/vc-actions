@@ -93,12 +93,13 @@ plan is worse than a cautious one.
 Return ONLY the JSON, no preamble, no code fences."""
 
 
+# FunnelAgent retired 2026-05-29 (Phase 1 redesign): paid-funnel signals
+# folded into AdsAgent, organic/site-funnel signals into SEOAgent.
 SPECIALIST_NAMES = (
     "AdsAgent",
     "CustomerAgent",
     "ProductAgent",
     "ContentAgent",
-    "FunnelAgent",
     "FinancialAgent",
     "SEOAgent",
 )

@@ -18,6 +18,10 @@ class AdsAgent(BaseAgent):
         "Meta Ads by Ad Set",
         "Meta Ads by Ad",
         "Meta Ads Demographics",
+        # Paid-funnel signals, absorbed from the retired FunnelAgent
+        # (2026-05-29): judge whether paid traffic converts after the click.
+        "Weekly Summary",
+        "Funnel by Source",
     ]
 
 

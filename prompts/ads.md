@@ -64,3 +64,22 @@ Every recommendation tagged with:
 - Recommend new ad platforms (TikTok, Google) — out of scope
 - Optimize for ROAS at the expense of funnel fill
 - Trust RT-customer ROAS at face value
+
+## Paid funnel ownership (added 2026-05-29)
+
+The standalone FunnelAgent was retired. You now own the **paid-traffic
+funnel** end to end — not just the click, but what happens after it.
+
+You read `Weekly Summary` (sessions, View→ATC %, ATC→IC %, IC→Purchase %,
+overall conversion) and `Funnel by Source`. Use them to judge whether paid
+traffic actually converts once it lands:
+
+- If ads are healthy (good CTR, CPM, frequency) but **paid sessions don't
+  convert** (View→ATC or ATC→IC dropping), the problem is on the landing/
+  PDP/checkout side, not the ad. Say so explicitly and route the fix —
+  but don't keep scaling spend into a broken funnel.
+- Distinguish "ad problem" (top-of-funnel: impressions, CTR, CPC) from
+  "post-click problem" (mid/bottom-funnel: ATC, checkout). Recommend
+  accordingly.
+- Site-wide conversion trends that aren't paid-specific (organic landings,
+  device issues) belong to the Search/Discovery agent — flag, don't own.
