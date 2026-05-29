@@ -890,3 +890,71 @@ the financial role prompt, drop CustomerAgent from rotation) with tests.
 - Reporting-only framing (Tracker) is the structural fix for the
   overreach failure mode, complementing the decision-discipline rules
   added to the coordinator in PR #13.
+
+
+---
+
+## Ops — 2026-05-29 (later) — Phase 1 of redesign shipped + key decisions locked
+
+### Session goal
+Execute Phase 1 of the 6-specialist redesign and lock the design decisions
+Darci made about research, Omnisend, and the Email agent.
+
+### Decisions locked (Darci)
+- **Research = subscription-not-API pattern.** Broadened Content + Search
+  agents will NOT use paid web tools. Instead, each emits a research prompt
+  pack; Darci runs it in Claude Pro / ChatGPT deep research (flat-rate);
+  pastes the report back into a sheet tab in a fixed format; the agent reads
+  it. Same trick as baselines. Kills API cost AND hallucination risk.
+  Cadence: light weekly + deep monthly. (Phase 3.)
+- **Omnisend = Option A (manual paste via her existing Claude.ai MCP).**
+  Her Claude.ai↔Omnisend MCP connection can't be reached by our GitHub
+  Actions / Fly runtimes (different processes). Cleanest fit: she pulls the
+  Omnisend report in Claude.ai monthly and pastes it into a sheet tab; the
+  Email agent reads it from the sheet like every other agent. (Phase 2.)
+  Upgrade to Omnisend REST API or vc-dashboard pipe later if paste gets old.
+- **Email agent DRAFTS campaigns for her review** (not just strategy).
+- **6-specialist lineup confirmed.** Start with Phase 1.
+
+### What was shipped (PR #14, Phase 1 — prompt/config only)
+- FunnelAgent retired from rotation (runner.SPECIALIST_CLASSES +
+  goals_agent.SPECIALIST_NAMES). Class + funnel.md kept for easy revival.
+- Funnel data folded: AdsAgent gained Weekly Summary + Funnel by Source
+  (paid funnel); SEOAgent gained Device Breakdown (organic/site funnel,
+  already had Landing Pages). ads.md + seo.md got "funnel ownership"
+  sections with flag-don't-double-own guidance.
+- FinancialAgent reframed → "Business Tracker": reporting-only role prompt
+  (sales/orders/returns/margin/AOV/new-vs-returning + WoW/MoM/QoQ/YoY
+  trends). No cost/solvency/veto. Internal name kept as FinancialAgent so
+  BASELINE: FinancialAgent + memo history survive.
+- CustomerAgent kept in rotation until Email agent replaces it (Phase 2) —
+  no retention-coverage gap.
+- Tests: 124 passing (dropped 2 parametrized FunnelAgent cases).
+
+### Why reporting-only Tracker matters
+It's the structural fix for the overreach failure mode (PR #13 added
+coordinator decision-discipline rules; this removes the source — an agent
+that was literally told to "veto" and give solvency calls without expense
+data). Pairs with the email trend charts: Tracker writes the words over
+the charts.
+
+### Open questions / next
+- Phase 2 (Email/Lifecycle agent): needs Omnisend performance pasted into a
+  new sheet tab (define the tab schema), then build the agent. It absorbs
+  CustomerAgent and drafts campaigns for review.
+- Phase 3 (broaden Content + Search): build the research-prompt-pack
+  workflow (agent emits prompt → Darci runs in Claude Pro/ChatGPT → pastes
+  report into a tab → agent reads). Light weekly + deep monthly.
+- Eventually: full rename FinancialAgent → BusinessTracker with a baseline
+  tab migration, if Darci wants the label clean everywhere.
+
+### Learnings for future sessions
+- The "expensive work happens in Darci's flat-rate subscription, results
+  land in a sheet tab, cheap API agents read the tab" pattern now covers
+  THREE things: baselines, research (Phase 3), and Omnisend data (Phase 2).
+  This is the core cost-control architecture — lean on it for anything
+  expensive or hallucination-prone.
+- Retiring an agent: remove from SPECIALIST_CLASSES + SPECIALIST_NAMES, fold
+  its data_tabs into the absorbing agents, add prompt guidance for the new
+  ownership, update test_runner expected-agents + test_specialists list.
+  Keep the class/prompt file for revival.

@@ -32,9 +32,12 @@ This file plus the latest entries in `BUILD_JOURNAL.md` (especially the `## Ops 
 
 `vc-actions` — currently 7 specialist Claude agents + 1 coordinator. Every Monday 8 AM CT, they read weekly data from the `vc-dashboard` Google Sheet and produce one unified action plan, emailed to Darci via Resend.
 
-> **⚠️ Architecture redesign proposed 2026-05-29 (see latest BUILD_JOURNAL ops entry).** Darci wants to simplify to **6 specialists + coordinator** with sharper, non-overlapping mandates:
+> **Architecture redesign IN PROGRESS (2026-05-29).** Simplifying to **6 specialists + coordinator** with sharper, non-overlapping mandates:
 > 1. **Ads** (+ absorbs paid funnel) · 2. **Email/Lifecycle** (NEW — replaces standalone CustomerAgent) · 3. **Product** · 4. **Content** (broadened: outside trend/competitor research) · 5. **Search/Discovery** (broadened: SEO + local + AI-search + website/competitor inspection, absorbs organic funnel) · 6. **Business Tracker** (reframed FinancialAgent — reporting only, no cost advice) · + **Coordinator**.
-> Dissolved: FunnelAgent. Dropped: WhatsApp. Build order: Phase 1 = retire Funnel + reframe Financial→Tracker + hold CustomerAgent (prompt/config only); Phase 2 = Email/Lifecycle agent (needs Omnisend data wired); Phase 3 = web tools + broaden Content & Search. **Not yet built — awaiting Darci's go-ahead on which phase to start.**
+> - **Phase 1 — SHIPPED (PR #14):** FunnelAgent retired (paid funnel → Ads, organic → SEO); FinancialAgent reframed to reporting-only Business Tracker. CustomerAgent kept until Phase 2 replaces it.
+> - **Phase 2 — next:** Email/Lifecycle agent (drafts campaigns for review; absorbs CustomerAgent). Needs Omnisend performance data pasted into a new sheet tab (Option A — Darci pulls via her Claude.ai Omnisend MCP, monthly).
+> - **Phase 3 — later:** broaden Content + Search via a research-prompt-pack workflow (agent emits prompt → Darci runs in Claude Pro/ChatGPT flat-rate → pastes report into a tab → agent reads). Light weekly + deep monthly. No paid API web tools.
+> - **Core cost pattern:** expensive/hallucination-prone work (baselines, research, Omnisend pulls) happens in Darci's flat-rate subscriptions, lands in a sheet tab, cheap API agents read the tab.
 
 **Specs (source of truth, do not modify without Darci):**
 - `VC_ACTIONS_MULTIAGENT_FRAMEWORK_v4.md` — architecture (predates the redesign above)
