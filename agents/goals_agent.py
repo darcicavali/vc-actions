@@ -35,6 +35,10 @@ COORDINATOR_OUTPUT_INSTRUCTION = """Produce a structured plan as a JSON object w
     "weeks_remaining": 0,
     "needed_per_week": 0
   },
+  "key_metrics": [
+    {"label": "Return rate", "value": "18.1%", "trend": "up|down|flat",
+     "status": "good|warn|bad", "context": "3rd week elevated; target <12%"}
+  ],
   "themes": [
     {"theme": "...", "supporting_agents": ["AdsAgent", "ProductAgent"], "implication": "..."}
   ],
@@ -48,6 +52,43 @@ COORDINATOR_OUTPUT_INSTRUCTION = """Produce a structured plan as a JSON object w
   "watch_list": ["things to revisit next week"],
   "summary_email_body": "human-readable text for Darci's email"
 }
+
+`key_metrics`: 4-6 headline numbers Darci should see at a glance. Each needs
+a trend direction (vs recent weeks) and a status color. For `status`, "good"
+= healthy/improving, "warn" = watch it, "bad" = actively hurting the business.
+Pick the metrics that actually drove this week's plan (e.g. pace, return rate,
+ROAS, conversion/ATC, top customer-segment movement). These render as a visual
+scorecard at the top of the email — choose what matters, not everything.
+
+## Decision discipline — READ BEFORE WRITING THE PLAN
+
+These rules override any single specialist's enthusiasm. A confidently-wrong
+plan is worse than a cautious one.
+
+1. NEVER recommend a permanent or irreversible action (vendor ban, product
+   discontinuation, account closure, firing a channel) based on fewer than
+   4 weeks of trend data OR less than ~$500 of absolute weekly impact.
+   Small-dollar, short-window signals get an INVESTIGATE action, not an
+   irreversible one. State the dollar impact explicitly so the reader can
+   judge proportionality.
+
+2. A return rate ABOVE 100% means returns exceeded same-week sales — this
+   almost always means old inventory coming back in bulk or a data/reporting
+   artifact, NOT that the product is defective. Treat >100% return rates as
+   "investigate root cause," never as a quality verdict or a reason to ban.
+
+3. When the root cause of a problem is unknown, the highest-leverage move is
+   to DIAGNOSE it, not to take drastic action on a guess. Don't recommend a
+   ban in one breath and "find out why" in the next — if you don't know why,
+   the recommendation IS "find out why."
+
+4. `one_thing_this_week` must be reversible and evidence-backed. Drastic or
+   irreversible moves belong lower in `sequenced_actions`, explicitly gated
+   on the outcome of an investigation step.
+
+5. Respect the specialists' own baseline rules. If a baseline says
+   "single-week swings are not actionable — require 4-week confirmation,"
+   you may not override it just because this week looks dramatic.
 
 Return ONLY the JSON, no preamble, no code fences."""
 
@@ -74,6 +115,7 @@ class ActionPlan:
     conflicts_resolved: list[dict] | str
     watch_list: list[str]
     summary_email_body: str
+    key_metrics: list[dict] = field(default_factory=list)
     raw_response: str = ""
 
     @property
@@ -214,6 +256,7 @@ class GoalsAgent(BaseAgent):
             pace = {"raw": pace}
         watch = list(parsed.get("watch_list", []) or [])
         conflicts = parsed.get("conflicts_resolved", []) or []
+        key_metrics = [m for m in (parsed.get("key_metrics", []) or []) if isinstance(m, dict)]
 
         plan = ActionPlan(
             generated_at=_now_iso(),
@@ -225,6 +268,7 @@ class GoalsAgent(BaseAgent):
             conflicts_resolved=conflicts,
             watch_list=watch,
             summary_email_body=str(parsed.get("summary_email_body", "")),
+            key_metrics=key_metrics,
             raw_response=raw_text,
         )
         self._last_plan = plan

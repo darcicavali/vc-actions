@@ -131,6 +131,7 @@ def _send_digest_email(config: Config, plan: "GoalsAgent.last_plan | None") -> N
             recipient=config.resend_to,
             subject=formatted.subject,
             text=formatted.text,
+            html=formatted.html,
         )
         print(f"[digest] resend status={result.status_code}")
         return
