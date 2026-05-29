@@ -680,3 +680,116 @@ action plan AND delivers it to Darci's inbox without manual intervention.
 2. Then Phase 2 (Fly.io account + secrets + API token).
 3. Then Phase 3 (click Deploy Bot workflow).
 4. Monday 2026-06-01: first scheduled auto-run.
+
+
+---
+
+## Ops — 2026-05-25 (eve) — Chat bot deployed and live
+
+### Session goal
+Land Track B: get the Telegram chat bot deployed end-to-end and
+responding to Darci's messages. From "code merged but not running" to
+"bot is alive."
+
+### What was attempted
+- Track B Phase 1: Darci created the bot via @BotFather and grabbed her
+  user ID via @userinfobot. Tokens stored separately, not yet wired to
+  GitHub.
+- Track B Phase 2: Darci tried Fly's "Launch an App from GitHub" UI.
+  Hit a generic "Failed to create app. Please try again." error — Fly's
+  GitHub-integrated launch flow is flaky and gives no useful detail.
+- Pivoted: rewrote `.github/workflows/deploy_bot.yml` to be self-contained.
+  Workflow now (PR #11):
+  1. Verifies all required secrets are present (clear error if missing)
+  2. Parses the app name from fly.toml
+  3. Creates the Fly app if it doesn't exist (idempotent)
+  4. Stages all Fly secrets from GitHub secrets (--stage avoids early redeploy)
+  5. Runs `flyctl deploy --remote-only`
+- Darci added FLY_API_TOKEN, TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USER_ID
+  as GitHub repo secrets. Triggered deploy. It succeeded.
+- Bot still didn't respond. Fly logs showed an ImportError loop —
+  `chat/telegram_app.py` and `chat/web_app.py` imported `load_config`
+  from `scripts.config`, but the function is `get_config`. Tests for the
+  chat package only cover brain/tools/memory/audit/guardrails — the two
+  transport entry points are uncovered, so this slipped through. Fixed
+  in PR #12.
+- After PR #12 merged, deploy auto-ran (chat/** path trigger). New image
+  built and prepared, but the previously crash-looping machine had hit
+  Fly's max-restart-count of 10 and remained suspended. New machines
+  were created but not started.
+- Then discovered TWO machines existed (Fly's default for non-HTTP
+  process groups). Telegram only allows one long-poller per bot token,
+  so having two machines breaks bot replies even if both run cleanly.
+  Darci deleted one machine via Fly dashboard and started the other.
+  Bot replied to "hi" immediately after.
+
+### What worked
+- The self-contained deploy workflow (PR #11) is the right shape:
+  one click does everything, no Fly UI required, no terminal. Future
+  bot redeploys are a single button click.
+- Diagnostic flow scaled: Fly's Logs & Errors page gave us exactly the
+  ImportError stack trace we needed. The "machine has reached its max
+  restart count" line told us why the new image wasn't being used.
+
+### What failed / had to retry
+- The `load_config` vs `get_config` import mismatch should never have
+  shipped. Two missing tests would have caught it: a smoke test that
+  just imports `chat.telegram_app` and `chat.web_app` (no execution
+  needed). Adding these is a small follow-up.
+- The Fly Launch UI was a dead end. Spent ~15 minutes there with no
+  diagnostic value. Lesson: when Fly's GitHub-integrated UI fails,
+  immediately fall back to CLI-via-Actions instead of debugging the UI.
+- The dual-machine issue is the second time Fly's defaults conflicted
+  with our use case (first was the missing internal port — irrelevant
+  for long-polling). For Telegram bots specifically, fly.toml needs a
+  hard `count = 1` constraint. Follow-up: add `flyctl scale count 1`
+  to the deploy workflow as a final step, OR pin via fly.toml if Fly
+  supports that for non-HTTP apps.
+
+### Decisions made
+- **Deploy workflow is the canonical bot-deploy path.** Never use Fly's
+  Launch UI again. All deploys go through GitHub Actions.
+- **Append-only writes for the chat bot.** Current tools (`add_lesson`,
+  `note_for_next_run`) cannot delete or modify existing data. Any
+  destructive tool added in the future MUST go through the guardrail
+  confirmation gate. No exceptions.
+- **Single Fly machine, not two.** Telegram's one-poller-per-token rule
+  makes multi-machine redundancy harmful, not helpful. Operational
+  follow-up: enforce count=1 in the deploy workflow.
+
+### Open questions
+- Should I push a fly.toml or deploy-workflow fix to lock count=1?
+  Manual delete worked this time but if a future deploy creates two
+  machines again, the bot will silently break.
+- Anthropic API spend: no cap currently configured on the API key.
+  Heavy chat usage could exceed expected $5-30/month range without
+  warning. Worth surfacing as an "add this safety net" recommendation.
+- Resend free tier covers 3K emails/month; even daily bot-pushed
+  digests are nowhere near that limit. Domain verification (custom
+  from-address instead of onboarding@resend.dev) deferred until Darci
+  wants it.
+
+### Next step
+1. Bot is alive — Monday 2026-06-01 is the first scheduled cron with
+   email delivery.
+2. Push fly.toml/workflow update to lock count=1 (defensive).
+3. After Monday's run, decide on next iteration based on real action
+   plan output.
+
+### Learnings for future sessions
+- **Always smoke-test transport entry points.** If a module is only
+  loaded at runtime (like the chat transports), add at least an
+  `import chat.telegram_app` test so import errors fail in CI.
+- **Fly Machines API quirks:** non-HTTP process groups default to 2
+  machines; Telegram bots need exactly 1. Hard-code count=1 in any
+  long-polling bot deploy.
+- **Fly's Launch UI failures are dead ends.** Use CLI-via-Actions
+  instead. The CLI gives actionable errors; the UI gives "Please try
+  again."
+- **The "machine has reached max restart count" signal** means the
+  previous deploy crashed too many times. After fixing the bug, the
+  machine still needs a manual restart (the auto-restart counter
+  doesn't reset on new image pulls).
+- **Telegram allows exactly ONE long-poller per bot token.** This
+  invariant means horizontal scaling is structurally impossible for
+  this transport. Webhook-based bots can scale; long-polling cannot.

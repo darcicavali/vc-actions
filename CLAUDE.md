@@ -43,32 +43,32 @@ This file plus the latest entries in `BUILD_JOURNAL.md` (especially the `## Ops 
 
 ## Current state (update this section every session)
 
-**Last updated:** 2026-05-25
+**Last updated:** 2026-05-25 (eve)
 
 ### Deployment status
 
-- GitHub Actions workflow exists: `.github/workflows/weekly_run.yml`.
-- Required secrets in GitHub: **ANTHROPIC_API_KEY, GOOGLE_SHEET_ID, GOOGLE_SERVICE_ACCOUNT_JSON, RESEND_API_KEY** — all in place.
-- Required variables: **RESEND_TO** (Darci's email) — in place.
+- GitHub Actions workflow `weekly_run.yml` exists. Monday 13:00 UTC cron + manual dispatch.
+- GitHub Actions workflow `deploy_bot.yml` exists. Manual dispatch + auto on `chat/**` push.
+- Required GitHub secrets: **ANTHROPIC_API_KEY, GOOGLE_SHEET_ID, GOOGLE_SERVICE_ACCOUNT_JSON, RESEND_API_KEY, FLY_API_TOKEN, TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USER_ID** — all in place.
+- Required GitHub variables: **RESEND_TO** — in place.
 - Google Sheet shared with the service account email — done.
-- **First dry-run failures all fixed in main:** 200k-token overflow (`535221c`), rate-limit pacing (`535221c`), Windows UTF-8 (`4ea6c46`, `005ae2e`).
-- **Bootstrap_only run created all 10 new tabs** for $0 (`BASELINE: <Agent>` × 8, `Bot Actions`, `Bot Notes`).
-- **First REAL production run (2026-05-22)** completed end-to-end after one fix: GoalsAgent's JSON was truncated at 2500-token output cap. Fixed in PR #8 by adding `preferred_max_tokens=8000` to GoalsAgent. All 7 specialists succeeded; coordinator now succeeds too on the re-run.
-- **Resend integration** shipped in PR #9: weekly digest email goes via Resend (`onboarding@resend.dev`), reusing the API key from the `ig-gbp-sync` repo. Omnisend stays as fallback. Plain-text format optimized for phone reading.
-- **`test_email` mode** shipped in PR #10: free-tier sample-email diagnostic, same pattern as `bootstrap_only` and `list_tabs`. Sends one realistic-looking sample digest, no agent runs, no Claude calls.
-- **Resend wiring verified 2026-05-25** — test email landed in Darci's inbox after correcting `RESEND_TO` from secret to variable.
+- **Weekly run path verified end-to-end** (2026-05-22). All 7 specialists succeeded; GoalsAgent failed once on token truncation; fixed in PR #8. Re-run after fix not yet exercised — first auto-run is Monday 2026-06-01.
+- **Resend email path verified** via `test_email` mode (PR #10). Sample digest landed in Darci's inbox 2026-05-25.
+- **Chat bot is LIVE on Fly.io** as of 2026-05-25 (eve). Telegram replies to Darci, ignores everyone else. Two bugs surfaced during deploy and were fixed: `load_config`→`get_config` import typo (PR #12), and the dual-machine issue (Fly default created 2 machines; Telegram only allows 1 long-poller per bot token; Darci deleted the second machine via Fly dashboard).
 
 ### Merged PRs (latest first)
 
 | PR | Title | Status | Notes |
 |---|---|---|---|
-| #10 | `test_email` mode for free Resend wiring verification | ✅ Merged 2026-05-25 | Workflow input that sends a sample digest and exits. Used to confirm Resend wiring before Monday auto-run. |
-| #9 | Send Monday digest via Resend | ✅ Merged 2026-05-25 | Reuses the API key from `ig-gbp-sync`. Omnisend stays as fallback. |
-| #8 | Fix GoalsAgent JSON truncation | ✅ Merged 2026-05-22 | `preferred_max_tokens=8000` on GoalsAgent. Coordinator now succeeds on full action plan. |
-| #7 | `list_tabs` flag for free read-only sheet inspection | OPEN | Adds workflow input to print every tab title. Darci provided tab list manually so not yet merged. |
-| #6 | Fly.io deploy workflow for the Telegram chat bot | ✅ Merged 2026-05-19 | New `deploy_bot.yml` triggers `flyctl deploy --remote-only`. Not yet exercised — Fly setup pending. |
-| #5 | `bootstrap_only` mode for free tab creation | ✅ Merged 2026-05-13 | Also moved `ensure_all_tabs()` out of the dry-run guard. |
-| #4 | Land cost cuts + baseline layer + chat bot | ✅ Merged 2026-05-13 | Cost, baseline, chat bot all on main. |
+| #12 | Fix chat module imports — get_config not load_config | ✅ Merged 2026-05-25 | The bot crashed on import; tests don't cover transports yet. |
+| #11 | Self-contained deploy_bot workflow | ✅ Merged 2026-05-25 | Creates Fly app + stages secrets + deploys, all from one click. |
+| #10 | test_email mode for free Resend wiring verification | ✅ Merged 2026-05-25 | Saved Darci from waiting until Monday to discover wiring bugs. |
+| #9 | Send Monday digest via Resend | ✅ Merged 2026-05-25 | Reuses ig-gbp-sync API key. Omnisend stays as fallback. |
+| #8 | Fix GoalsAgent JSON truncation | ✅ Merged 2026-05-22 | `preferred_max_tokens=8000` on coordinator. |
+| #7 | list_tabs flag for free sheet inspection | OPEN | Diagnostic; not blocking. |
+| #6 | Fly.io deploy workflow stub | ✅ Merged 2026-05-19 | Superseded by PR #11. |
+| #5 | bootstrap_only mode for free tab creation | ✅ Merged 2026-05-13 | Also always-on ensure_all_tabs. |
+| #4 | Cost cuts + baseline layer + chat bot | ✅ Merged 2026-05-13 | Foundation merge. |
 
 ### Baseline progress (Track A — Darci's manual workflow via Claude.ai Max)
 
@@ -101,9 +101,11 @@ Decision deferred until after baselines complete: either update agent `data_tabs
 
 ### Track B — chat bot deployment
 
-- Code merged in PR #4. Tested. 34 chat-layer tests passing.
-- Fly.io deploy workflow merged in PR #6.
-- **Now active (2026-05-25):** Darci ready to do Phase 1 (Telegram via @BotFather + @userinfobot). Phase 2 is Fly.io account + secrets + API token. Phase 3 is clicking the Deploy Bot workflow.
+- ✅ DEPLOYED and live as of 2026-05-25 (eve). Bot responds to Darci in Telegram.
+- Hosted on Fly.io, single machine (`shared-cpu-1x`, 256MB), region `ord`. App name: `vc-actions-bot`.
+- Bot reads: every sheet tab, baselines, recent memos, action plan, outcomes. Writes (append-only): `Bot Actions` audit log, `Agent Knowledge` lessons, `Bot Notes` forward-channel notes.
+- Auth: only Darci's Telegram user ID gets responses. Everyone else silently ignored.
+- Next defensive improvement: lock `count=1` in deploy workflow so Fly never creates a second machine again (Telegram bot tokens only allow one long-poller).
 
 ### Track C — maintenance reminders (planned, not built)
 
@@ -111,14 +113,43 @@ Darci asked for a way to be reminded of monthly baseline refreshes (and other re
 
 ### Next actions, in order
 
-1. **Track B Phase 1 — Telegram setup** (in-progress). Darci creates bot via @BotFather, gets her user ID from @userinfobot.
-2. **Track B Phase 2 — Fly.io account + secrets + API token.**
-3. **Track B Phase 3 — trigger the Deploy Bot workflow.**
-4. **Monday 2026-06-01 auto-run** — first scheduled cron, action plan + email delivered automatically.
-5. **Build Track C (maintenance reminders)** after Monday run.
-6. **GoalsAgent baseline** after 3-4 weekly runs accumulate (~end of June).
-7. **Schema gap cleanup** (Returns / COGS / Margin Trends / All Products / GBP / Search Console / Product Meta) — non-blocking, defer until clearly needed.
-8. **SEO Phase 2** (Search Console / GBP / website-fetch tools) — only if Darci asks for it after seeing the SEO baseline gaps in practice.
+1. **Set spending limit on Anthropic API key** (https://console.anthropic.com/settings/limits). No cap currently — risk of runaway cost if chat bot is misused or there's a runaway loop. Recommended: $50/month soft limit.
+2. **Set Fly billing alert** (https://fly.io/dashboard/personal/billing). Recommended: $10/month alert. Practical bot cost is ~$0–3/month.
+3. **Lock Fly machine count = 1** in the deploy workflow (defensive — prevents the dual-machine issue from recurring). Small follow-up PR.
+4. **Smoke test for chat transports** — add `import chat.telegram_app` / `import chat.web_app` test so import errors fail in CI, not on Fly. Small follow-up PR.
+5. **Monday 2026-06-01 auto-run** — first scheduled cron. Action plan written to sheet, email delivered via Resend. **No action required from Darci.**
+6. **Build Track C (maintenance reminders)** after Monday run.
+7. **GoalsAgent baseline** after 3-4 weekly runs accumulate (~end of June).
+8. **Schema gap cleanup** (Returns / COGS / Margin Trends / All Products / GBP / Search Console / Product Meta) — non-blocking, defer.
+9. **SEO Phase 2** (Search Console / GBP / website-fetch tools) — only if Darci asks after seeing the SEO baseline gaps in practice.
+
+### Cost model (monthly)
+
+| Component | Cost | Notes |
+|---|---|---|
+| Weekly cron (4×/mo) | $0.40–1.20 | $0.10–0.30/run × 4. Lower once baselines fully compress prompts. |
+| Fly.io hosting (always-on bot) | $0–3 | $5/mo free credit usually covers; cap at $10/mo alert. |
+| Chat bot Anthropic usage | $1–30 | Variable. $0.01–0.02/message with caching. 10 msg/day → ~$3–6/mo. |
+| Resend email | $0 | 3K/mo free tier; we send ~5/mo. |
+| **Total** | **~$5–35/mo** | Plus Claude.ai Max ($200/mo) for monthly baseline refreshes — pre-existing. |
+
+### Safety measures (review 2026-05-25)
+
+**Protections in place:**
+- Telegram bot ignores everyone except Darci's user ID (silent allow-list).
+- Chat bot write tools are append-only (`add_lesson`, `note_for_next_run`). No tool can delete or overwrite existing data.
+- `chat/guardrails.py` framework — any future destructive tool will require explicit confirmation before execution.
+- All API keys / service account JSON stored as GitHub Secrets + Fly Secrets (encrypted at rest, masked in logs).
+- Single Fly machine, fixed size — no auto-scaling, no runaway spend risk on hosting side.
+- Service account permissions limited to one Google Sheet (vc-dashboard), not the broader Google account.
+- Resend free tier rate-limited (100/day, 3K/mo) — caps email volume even on misuse.
+
+**Open security follow-ups:**
+- No spending cap on Anthropic API key — recommend setting in Anthropic console.
+- No 2FA enforcement check on GitHub / Fly / Anthropic — Darci should ensure 2FA is on for all three.
+- Conversation history stored in SQLite on Fly machine — if Fly machine compromised, conversation data exposed. Acceptable for this scale.
+- Telegram bot token in plain-readable GitHub secret — anyone with repo write access could read it via a malicious workflow. Mitigated by: Darci is sole repo owner.
+- Periodic rotation policy not established for any key.
 
 ### Open requirement — two-way communication (NEW, not in v4/v5 spec)
 

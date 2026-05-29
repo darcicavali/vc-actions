@@ -52,11 +52,12 @@ def test_format_digest_basic():
     out = format_digest(plan)
 
     assert out.subject == "VC Weekly Plan — 2026-05-25"
+    # plain-text body
     assert "ONE THING THIS WEEK" in out.text
     assert "Pause RT-non-customer campaign" in out.text
     assert "SUMMARY" in out.text
     assert "Week of 5/18" in out.text
-    assert "PACE STATUS" in out.text
+    assert "PACE" in out.text
     assert "$67,767" in out.text
     assert "$124,615" in out.text
     assert "$-56,848" in out.text or "-$56,848" in out.text
@@ -65,6 +66,10 @@ def test_format_digest_basic():
     assert "AdsAgent" in out.text
     assert "WATCH NEXT WEEK" in out.text
     assert out.text.endswith("\n")
+    # html body
+    assert out.html.startswith("<div")
+    assert "ONE THING THIS WEEK" in out.html
+    assert "Pause RT-non-customer creative set" in out.html
 
 
 def test_format_digest_with_week_label():
@@ -78,21 +83,59 @@ def test_format_digest_handles_empty_sections():
         pace_status={},
         sequenced_actions=[],
         watch_list=[],
+        key_metrics=[],
         summary_email_body="",
     )
     out = format_digest(plan)
     assert "ONE THING THIS WEEK" in out.text
     assert "SUMMARY" in out.text
-    assert "PACE STATUS" not in out.text
+    assert "PACE\n" not in out.text  # no pace block when pace_status empty
     assert "THIS WEEK'S ACTIONS" not in out.text
     assert "WATCH NEXT WEEK" not in out.text
 
 
-def test_format_digest_appends_summary_email_body():
+def test_format_digest_drops_duplicate_summary_email_body():
+    """The old format printed summary_email_body in addition to the structured
+    sections — same plan twice. We now build ONE layout from structured fields
+    and drop the free-form body from the email (it stays in the sheet)."""
     plan = _plan(summary_email_body="Hey Darci, here's the long-form take...")
     out = format_digest(plan)
-    assert "Hey Darci" in out.text
-    assert "---" in out.text
+    assert "Hey Darci" not in out.text
+    assert "Hey Darci" not in out.html
+
+
+def test_format_digest_renders_scorecard_and_chart():
+    plan = _plan(
+        key_metrics=[
+            {"label": "Return rate", "value": "18.1%", "trend": "up",
+             "status": "bad", "context": "3rd week elevated"},
+            {"label": "ROAS", "value": "3.39", "trend": "up",
+             "status": "good", "context": "best in 3 weeks"},
+        ]
+    )
+    out = format_digest(plan)
+    # scorecard in html
+    assert "Return rate" in out.html
+    assert "18.1%" in out.html
+    assert "ROAS" in out.html
+    # key numbers also in text
+    assert "KEY NUMBERS" in out.text
+    assert "Return rate: 18.1%" in out.text
+    # pace chart embedded via QuickChart
+    assert "quickchart.io/chart" in out.html
+
+
+def test_format_digest_caps_actions_in_email():
+    many = [
+        {"priority": i, "day": "Mon", "action": f"action {i}", "agent_source": "X"}
+        for i in range(1, 9)
+    ]
+    plan = _plan(sequenced_actions=many)
+    out = format_digest(plan)
+    # 8 actions, capped at 5 shown + a "more" line
+    assert "action 5" in out.text
+    assert "action 6" not in out.text
+    assert "and 3 more" in out.text
 
 
 def test_format_digest_actions_without_optional_fields():
